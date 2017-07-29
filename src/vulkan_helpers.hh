@@ -21,31 +21,24 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#ifndef PONG_CONTEXT_HH
-#define PONG_CONTEXT_HH
+#ifndef PONG_VULKAN_HELPERS_HH
+#define PONG_VULKAN_HELPERS_HH
 #include "config.hh"
+#include <cstdint>
+#include <string>
+#include <vector>
 #include <vulkan/vulkan.h>
-#include <SDL2/SDL_syswm.h>
 
-class context
-{
-public:
-    /**
-     * \brief Creates a context, ensuring that only one exists at a time.
-     */
-    context();
-    context(context&& other);
-    ~context();
+std::string get_vulkan_result_string(VkResult result);
 
+void ensure_vulkan_instance_layers(
+    const char* const* required_layers,
+    uint32_t required_layers_count
+);
 
-private:
-    friend class window;
-
-    static bool& exists();
-
-    bool inited_sdl;
-    SDL_SYSWM_TYPE wm_type;
-    VkInstance instance;
-};
+void ensure_vulkan_instance_extensions(
+    const char* const* required_extensions,
+    uint32_t required_extensions_count
+);
 
 #endif

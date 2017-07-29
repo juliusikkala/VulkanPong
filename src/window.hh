@@ -23,16 +23,17 @@ SOFTWARE.
 */
 #ifndef PONG_WINDOW_HH
 #define PONG_WINDOW_HH
+#include "config.hh"
 #include <SDL2/SDL.h>
-#include "context.hh"
 
+class context;
 class window
 {
 public:
     struct params
     {
         params() {}
-        const char* title = "Pong";
+        const char* title = config::name;
         unsigned w = 640, h = 480;
         bool fullscreen = false;
         bool vsync = true;

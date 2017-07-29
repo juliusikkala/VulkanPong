@@ -1,7 +1,14 @@
+configure_file(
+    input : 'config.hh.in',
+    output : 'config.hh',
+    configuration : conf_data
+)
+
 src = [
     'main.cc',
     'context.cc',
     'window.cc',
+    'vulkan_helpers.cc'
 ]
 cc = meson.get_compiler('cpp')
 m_dep = cc.find_library('m', required : false)
