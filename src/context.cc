@@ -21,14 +21,40 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include <iostream>
 #include "context.hh"
-#include "window.hh"
+#include <stdexcept>
+#include <SDL2/SDL.h>
 
-int main()
+context::context()
 {
-    context ctx;
-    window win(ctx);
-    std::cout<<"This will become a pong game some day..."<<std::endl;
-    return 0;
+    const char* error = "Unknown error";
+    if(exists()) throw std::runtime_error("A context already exists.");
+
+    if(SDL_Init(SDL_INIT_EVERYTHING))
+    {
+        error = SDL_GetError();
+        goto fail_init;
+    }
+
+    return;
+
+fail_:
+    SDL_Quit();
+fail_init:
+    throw std::runtime_error(error);
+}
+
+context::context(context&& other)
+{
+}
+
+context::~context()
+{
+    SDL_Quit();
+}
+
+bool& context::exists()
+{
+    static bool e = false;
+    return e;
 }

@@ -21,14 +21,30 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include <iostream>
+#ifndef PONG_WINDOW_HH
+#define PONG_WINDOW_HH
+#include <SDL2/SDL.h>
 #include "context.hh"
-#include "window.hh"
 
-int main()
+class window
 {
-    context ctx;
-    window win(ctx);
-    std::cout<<"This will become a pong game some day..."<<std::endl;
-    return 0;
-}
+public:
+    struct params
+    {
+        params() {}
+        const char* title = "Pong";
+        unsigned w = 640, h = 480;
+        bool fullscreen = false;
+        bool vsync = true;
+    };
+
+    window(context& ctx, const params& p = params());
+    
+    window(window&& other);
+    ~window();
+
+private:
+    SDL_Window* win;
+};
+
+#endif

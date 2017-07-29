@@ -21,14 +21,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include <iostream>
-#include "context.hh"
-#include "window.hh"
+#ifndef PONG_CONTEXT_HH
+#define PONG_CONTEXT_HH
+#include <vulkan/vulkan.h>
 
-int main()
+class context
 {
-    context ctx;
-    window win(ctx);
-    std::cout<<"This will become a pong game some day..."<<std::endl;
-    return 0;
-}
+public:
+    /**
+     * \brief Creates a context, ensuring that only one exists at a time.
+     */
+    context();
+    context(context&& other);
+    ~context();
+
+private:
+    static bool& exists();
+};
+
+#endif
