@@ -24,10 +24,11 @@ SOFTWARE.
 #ifndef PONG_VULKAN_HELPERS_HH
 #define PONG_VULKAN_HELPERS_HH
 #include "config.hh"
+#include <vulkan/vulkan.h>
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <vulkan/vulkan.h>
+#include <functional>
 
 std::string get_vulkan_result_string(VkResult result);
 
@@ -52,6 +53,25 @@ void destroy_debug_report_callback(
     VkInstance instance,
     VkDebugReportCallbackEXT callback,
     const VkAllocationCallbacks* allocator
+);
+
+// A rating callback must return a higher number for a better device and
+// negative values for unsuitable devices.
+using rate_vulkan_device_callback = std::function<int(
+    VkPhysicalDeviceProperties&,
+    VkPhysicalDeviceFeatures&
+)>;
+
+// Rates a device based on vendor and device type, preferring discrete GPUs and
+// AMD and Nvidia over Intel.
+int rate_vulkan_device(
+    VkPhysicalDeviceProperties& properties,
+    VkPhysicalDeviceFeatures& features
+);
+
+std::vector<VkPhysicalDevice> find_vulkan_devices(
+    VkInstance instance,
+    rate_vulkan_device_callback rate = rate_vulkan_device
 );
 
 #endif

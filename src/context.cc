@@ -55,6 +55,48 @@ context::context()
 
     wm_type = get_wm_type();
 
+    create_instance();
+#ifdef DEBUG
+    create_debug_callback();
+#endif
+    find_device();
+
+    return;
+}
+
+context::context(context&& other)
+: inited_sdl(other.inited_sdl), wm_type(other.wm_type),
+  instance(other.instance), device(other.device)
+{
+#ifdef DEBUG
+    other.destroy_debug_callback();
+    create_debug_callback();
+#endif
+    other.inited_sdl = false;
+    other.instance = VK_NULL_HANDLE;
+    other.device = VK_NULL_HANDLE;
+}
+
+context::~context()
+{
+#ifdef DEBUG
+    destroy_debug_callback();
+#endif
+
+    destroy_instance();
+
+    if(inited_sdl)
+        SDL_Quit();
+}
+
+bool& context::exists()
+{
+    static bool e = false;
+    return e;
+}
+
+void context::create_instance()
+{
     unsigned version = VK_MAKE_VERSION(
         config::major,
         config::minor,
@@ -127,43 +169,33 @@ context::context()
             + get_vulkan_result_string(err)
         );
     }
-
-#ifdef DEBUG
-    create_debug_callback();
-#endif
-
-    return;
 }
 
-context::context(context&& other)
-: inited_sdl(other.inited_sdl), wm_type(other.wm_type),
-  instance(other.instance)
+void context::destroy_instance()
 {
-#ifdef DEBUG
-    other.destroy_debug_callback();
-    create_debug_callback();
-#endif
-    other.inited_sdl = false;
-    other.instance = nullptr;
-}
-
-context::~context()
-{
-#ifdef DEBUG
-    destroy_debug_callback();
-#endif
-
     if(instance)
+    {
         vkDestroyInstance(instance, nullptr);
-
-    if(inited_sdl)
-        SDL_Quit();
+        instance = VK_NULL_HANDLE;
+    }
 }
 
-bool& context::exists()
+void context::find_device()
 {
-    static bool e = false;
-    return e;
+    std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(instance);
+
+    if(suitable.size() == 0)
+    {
+        throw std::runtime_error("Failed to find a GPU with Vulkan support");
+    }
+
+    device = suitable[0];
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(device, &properties);
+
+    std::cout << properties.deviceName
+              << std::endl;
 }
 
 #ifdef DEBUG
@@ -195,7 +227,7 @@ void context::destroy_debug_callback()
     if(callback)
     {
         destroy_debug_report_callback(instance, callback, nullptr);
-        callback = nullptr;
+        callback = VK_NULL_HANDLE;
     }
 }
 

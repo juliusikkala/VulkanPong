@@ -25,6 +25,7 @@ SOFTWARE.
 #include <stdexcept>
 #include <cstdint>
 #include <cstring>
+#include <algorithm>
 #include "config.hh"
 
 std::string get_vulkan_result_string(VkResult result)
@@ -107,10 +108,10 @@ void ensure_vulkan_instance_layers(
         );
     }
 
-    VkLayerProperties* available_layers = new VkLayerProperties[count];
+    std::vector<VkLayerProperties> available_layers(count);
     if((err = vkEnumerateInstanceLayerProperties(
             &count,
-            available_layers
+            available_layers.data()
         )) != VK_SUCCESS)
     {
         throw std::runtime_error(
@@ -123,9 +124,8 @@ void ensure_vulkan_instance_layers(
     {
         const char* required = required_layers[i];
         bool found = false;
-        for(unsigned j = 0; j < count; ++j)
+        for(VkLayerProperties& available: available_layers)
         {
-            VkLayerProperties& available = available_layers[j];
             if(strcmp(required, available.layerName) == 0)
             {
                 found = true;
@@ -134,15 +134,12 @@ void ensure_vulkan_instance_layers(
         }
         if(!found)
         {
-            delete [] available_layers;
             throw std::runtime_error(
                 "Failed to find required Vulkan instance layer: "
                 + std::string(required)
             );
         }
     }
-
-    delete [] available_layers;
 }
 
 void ensure_vulkan_instance_extensions(
@@ -167,13 +164,12 @@ void ensure_vulkan_instance_extensions(
         );
     }
 
-    VkExtensionProperties* available_extensions =
-        new VkExtensionProperties[count];
+    std::vector<VkExtensionProperties> available_extensions(count);
 
     if((err = vkEnumerateInstanceExtensionProperties(
             NULL,
             &count,
-            available_extensions
+            available_extensions.data()
         )) != VK_SUCCESS)
     {
         throw std::runtime_error(
@@ -186,9 +182,8 @@ void ensure_vulkan_instance_extensions(
     {
         const char* required = required_extensions[i];
         bool found = false;
-        for(unsigned j = 0; j < count; ++j)
+        for(VkExtensionProperties& available: available_extensions)
         {
-            VkExtensionProperties& available = available_extensions[j];
             if(strcmp(required, available.extensionName) == 0)
             {
                 found = true;
@@ -197,15 +192,12 @@ void ensure_vulkan_instance_extensions(
         }
         if(!found)
         {
-            delete [] available_extensions;
             throw std::runtime_error(
                 "Failed to find required Vulkan instance extension: "
                 + std::string(required)
             );
         }
     }
-
-    delete [] available_extensions;
 }
 
 VkResult create_debug_report_callback(
@@ -236,4 +228,119 @@ void destroy_debug_report_callback(
         );
     if(vkDestroyDebugReportCallbackEXT)
         vkDestroyDebugReportCallbackEXT(instance, callback, allocator);
+}
+
+int rate_vulkan_device(
+    VkPhysicalDeviceProperties& properties,
+    VkPhysicalDeviceFeatures& features
+) {
+    int score = 0;
+
+    switch(properties.vendorID)
+    {
+    case 0x1002: //AMD
+    case 0x10DE: //NVIDIA
+        score += 100;
+        break;
+    case 0x8086: //Intel (I see what you did there with that ID :D)
+        score += 50;
+        break;
+    case 0x5143: //Qualcomm
+        score += 40;
+        break;
+    default:
+        score += 10;
+        break;
+    }
+
+    switch(properties.deviceType)
+    {
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+        score += 100;
+        break;
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+        score += 90;
+        break;
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+        score += 50;
+        break;
+    case VK_PHYSICAL_DEVICE_TYPE_CPU:
+        score += 10;
+        break;
+    default:
+        break;
+    }
+
+    return score;
+}
+
+std::vector<VkPhysicalDevice> find_vulkan_devices(
+    VkInstance instance,
+    rate_vulkan_device_callback rate
+) {
+    uint32_t device_count = 0;
+    VkResult err;
+    if((err = vkEnumeratePhysicalDevices(
+            instance,
+            &device_count, 
+            nullptr
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to enumerate devices: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    if(device_count == 0)
+    {
+        return {};
+    }
+
+    std::vector<VkPhysicalDevice> all_devices(device_count);
+    using scored_device = std::pair<VkPhysicalDevice, int>;
+    std::vector<scored_device> scored_devices;
+
+    if((err = vkEnumeratePhysicalDevices(
+            instance,
+            &device_count, 
+            all_devices.data()
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to get devices: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    for(VkPhysicalDevice device: all_devices)
+    {
+        VkPhysicalDeviceProperties properties;
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceProperties(device, &properties);
+        vkGetPhysicalDeviceFeatures(device, &features);
+
+        int score = rate(properties, features);
+        scored_devices.push_back({device, score});
+    }
+
+    std::sort(
+        scored_devices.begin(),
+        scored_devices.end(),
+        [](const scored_device& a, const scored_device& b){
+            return a.second > b.second;
+        }
+    );
+    
+    std::vector<VkPhysicalDevice> suitable_devices;
+
+    for(scored_device device: scored_devices)
+    {
+        if(device.second >= 0)
+        {
+            suitable_devices.push_back(device.first);
+        }
+    }
+
+    return suitable_devices;
 }

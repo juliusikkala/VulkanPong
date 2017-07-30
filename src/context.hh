@@ -45,9 +45,15 @@ private:
 
     static bool& exists();
 
+    void create_instance();
+    void destroy_instance();
+
+    void find_device();
+
     bool inited_sdl;
     SDL_SYSWM_TYPE wm_type;
     VkInstance instance;
+    VkPhysicalDevice device;
 
 #ifdef DEBUG
     void create_debug_callback();
