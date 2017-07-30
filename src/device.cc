@@ -30,7 +30,8 @@ SOFTWARE.
 device::device(context& ctx, window& win)
 {
     std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(
-        ctx.get_instance()
+        ctx.get_instance(),
+        win.get_surface()
     );
 
     if(suitable.size() == 0)
@@ -46,7 +47,10 @@ device::device(context& ctx, window& win)
     std::cout << properties.deviceName
               << std::endl;
 
-    queue_families families = find_queue_families(physical_device);
+    queue_families families = find_queue_families(
+        physical_device,
+        win.get_surface()
+    );
 
     std::vector<VkDeviceQueueCreateInfo> queue_infos;
 
@@ -62,17 +66,17 @@ device::device(context& ctx, window& win)
         queue_infos.push_back(graphics);
     }
 
-    if(families.compute_index >= 0
-       && families.graphics_index != families.compute_index)
+    if(families.present_index >= 0
+       && families.graphics_index != families.present_index)
     {
         //TODO: Check if having an idle compute queue affects performance
-        VkDeviceQueueCreateInfo compute = {};
-        compute.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        compute.queueFamilyIndex = families.compute_index;
-        compute.queueCount = 1;
-        compute.pQueuePriorities = &priority;
+        VkDeviceQueueCreateInfo present = {};
+        present.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        present.queueFamilyIndex = families.present_index;
+        present.queueCount = 1;
+        present.pQueuePriorities = &priority;
         
-        queue_infos.push_back(compute);
+        queue_infos.push_back(present);
     }
 
     VkPhysicalDeviceFeatures features = {};
@@ -100,16 +104,16 @@ device::device(context& ctx, window& win)
     }
 
     vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
-    vkGetDeviceQueue(dev, families.compute_index, 0, &compute_queue);
+    vkGetDeviceQueue(dev, families.present_index, 0, &present_queue);
 }
 
 device::device(device&& other)
 : dev(other.dev), graphics_queue(other.graphics_queue),
-  compute_queue(other.compute_queue)
+  present_queue(other.present_queue)
 {
     other.dev = VK_NULL_HANDLE;
     other.graphics_queue = VK_NULL_HANDLE;
-    other.compute_queue = VK_NULL_HANDLE;
+    other.present_queue = VK_NULL_HANDLE;
 }
 
 device::~device()

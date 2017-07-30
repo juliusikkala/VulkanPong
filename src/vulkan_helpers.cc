@@ -230,8 +230,10 @@ void destroy_debug_report_callback(
         vkDestroyDebugReportCallbackEXT(instance, callback, allocator);
 }
 
-int rate_vulkan_device(VkPhysicalDevice device)
-{
+int rate_vulkan_device(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+) {
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
     vkGetPhysicalDeviceProperties(device, &properties);
@@ -274,8 +276,8 @@ int rate_vulkan_device(VkPhysicalDevice device)
         break;
     }
 
-    queue_families families= find_queue_families(device);
-    if(families.graphics_index < 0)
+    queue_families families = find_queue_families(device, surface);
+    if(families.graphics_index < 0 || families.present_index < 0)
         return -1;
 
     return score;
@@ -283,6 +285,7 @@ int rate_vulkan_device(VkPhysicalDevice device)
 
 std::vector<VkPhysicalDevice> find_vulkan_devices(
     VkInstance instance,
+    VkSurfaceKHR surface,
     rate_vulkan_device_callback rate
 ) {
     uint32_t device_count = 0;
@@ -321,7 +324,7 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     }
 
     for(VkPhysicalDevice device: all_devices)
-        scored_devices.push_back({device, rate(device)});
+        scored_devices.push_back({device, rate(device, surface)});
 
     std::sort(
         scored_devices.begin(),
@@ -344,7 +347,10 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     return suitable_devices;
 }
 
-queue_families find_queue_families(VkPhysicalDevice device) {
+queue_families find_queue_families(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+) {
     uint32_t count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
 
@@ -367,6 +373,28 @@ queue_families find_queue_families(VkPhysicalDevice device) {
             && families[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
         {
             found_families.compute_index = i;
+        }
+
+        if(found_families.present_index < 0)
+        {
+            VkBool32 present_support = false;
+            VkResult err = vkGetPhysicalDeviceSurfaceSupportKHR(
+                device,
+                i,
+                surface,
+                &present_support
+            );
+            if(err != VK_SUCCESS)
+            {
+                throw std::runtime_error(
+                    "Failed to check present support: "
+                    + get_vulkan_result_string(err)
+                );
+            }
+            else if(present_support)
+            {
+                found_families.present_index = i;
+            }
         }
     }
     return found_families;

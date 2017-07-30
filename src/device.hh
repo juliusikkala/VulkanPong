@@ -37,6 +37,6 @@ public:
 
 private:
     VkDevice dev;
-    VkQueue graphics_queue, compute_queue;
+    VkQueue graphics_queue, present_queue;
 };
 #endif

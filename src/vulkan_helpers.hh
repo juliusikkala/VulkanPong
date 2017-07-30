@@ -64,14 +64,19 @@ void destroy_debug_report_callback(
 
 // A rating callback must return a higher number for a better device and
 // negative values for unsuitable devices.
-using rate_vulkan_device_callback = std::function<int(VkPhysicalDevice)>;
+using rate_vulkan_device_callback =
+    std::function<int(VkPhysicalDevice, VkSurfaceKHR)>;
 
 // Rates a device based on vendor and device type, preferring discrete GPUs and
 // AMD and Nvidia over Intel.
-int rate_vulkan_device(VkPhysicalDevice device);
+int rate_vulkan_device(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+);
 
 std::vector<VkPhysicalDevice> find_vulkan_devices(
     VkInstance instance,
+    VkSurfaceKHR surface,
     rate_vulkan_device_callback rate = rate_vulkan_device
 );
 
@@ -80,7 +85,11 @@ struct queue_families
 {
     int graphics_index;
     int compute_index;
+    int present_index;
 };
-queue_families find_queue_families(VkPhysicalDevice device);
+queue_families find_queue_families(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+);
 
 #endif

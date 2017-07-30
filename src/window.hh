@@ -46,6 +46,10 @@ public:
     ~window();
 
 private:
+    friend class device;
+
+    VkSurfaceKHR get_surface() const;
+
     context& ctx;
     SDL_Window* win;
     VkSurfaceKHR surface;

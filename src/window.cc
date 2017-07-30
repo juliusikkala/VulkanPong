@@ -158,3 +158,7 @@ window::~window()
     if(win) SDL_DestroyWindow(win);
 }
 
+VkSurfaceKHR window::get_surface() const
+{
+    return surface;
+}
