@@ -100,7 +100,7 @@ void ensure_vulkan_instance_layers(
 
     VkResult err;
 
-    if((err = vkEnumerateInstanceLayerProperties(&count, NULL)) != VK_SUCCESS)
+    if((err = vkEnumerateInstanceLayerProperties(&count, nullptr)) != VK_SUCCESS)
     {
         throw std::runtime_error(
             "Failed to enumerate Vulkan instance layers: "
@@ -153,13 +153,13 @@ void ensure_vulkan_instance_extensions(
     VkResult err;
 
     if((err = vkEnumerateInstanceExtensionProperties(
-            NULL,
+            nullptr,
             &count,
-            NULL
+            nullptr
         )) != VK_SUCCESS)
     {
         throw std::runtime_error(
-            "Failed to enumerate Vulkan extension layers: "
+            "Failed to enumerate Vulkan instance extensions: "
             + get_vulkan_result_string(err)
         );
     }
@@ -167,7 +167,7 @@ void ensure_vulkan_instance_extensions(
     std::vector<VkExtensionProperties> available_extensions(count);
 
     if((err = vkEnumerateInstanceExtensionProperties(
-            NULL,
+            nullptr,
             &count,
             available_extensions.data()
         )) != VK_SUCCESS)
@@ -200,6 +200,62 @@ void ensure_vulkan_instance_extensions(
     }
 }
 
+bool have_vulkan_device_extensions(
+    VkPhysicalDevice device,
+    const char* const* required_extensions,
+    uint32_t required_extensions_count
+) {
+    if(required_extensions_count == 0) return true;
+
+    uint32_t count = 0;
+
+    VkResult err;
+
+    if((err = vkEnumerateDeviceExtensionProperties(
+            device,
+            nullptr,
+            &count,
+            nullptr
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to enumerate Vulkan device extensions: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    std::vector<VkExtensionProperties> available_extensions(count);
+
+    if((err = vkEnumerateDeviceExtensionProperties(
+            device,
+            nullptr,
+            &count,
+            available_extensions.data()
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to get Vulkan device extension properties: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    for(unsigned i = 0; i < required_extensions_count; ++i)
+    {
+        const char* required = required_extensions[i];
+        bool found = false;
+        for(VkExtensionProperties& available: available_extensions)
+        {
+            if(strcmp(required, available.extensionName) == 0)
+            {
+                found = true;
+                break;
+            }
+        }
+        if(!found) return false;
+    }
+    return true;
+}
+
 VkResult create_debug_report_callback(
     VkInstance instance,
     const VkDebugReportCallbackCreateInfoEXT* create_info,
@@ -230,10 +286,8 @@ void destroy_debug_report_callback(
         vkDestroyDebugReportCallbackEXT(instance, callback, allocator);
 }
 
-int rate_vulkan_device(
-    VkPhysicalDevice device,
-    VkSurfaceKHR surface
-) {
+int rate_vulkan_device(VkPhysicalDevice device)
+{
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
     vkGetPhysicalDeviceProperties(device, &properties);
@@ -276,16 +330,11 @@ int rate_vulkan_device(
         break;
     }
 
-    queue_families families = find_queue_families(device, surface);
-    if(families.graphics_index < 0 || families.present_index < 0)
-        return -1;
-
     return score;
 }
 
 std::vector<VkPhysicalDevice> find_vulkan_devices(
     VkInstance instance,
-    VkSurfaceKHR surface,
     rate_vulkan_device_callback rate
 ) {
     uint32_t device_count = 0;
@@ -324,7 +373,7 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     }
 
     for(VkPhysicalDevice device: all_devices)
-        scored_devices.push_back({device, rate(device, surface)});
+        scored_devices.push_back({device, rate(device)});
 
     std::sort(
         scored_devices.begin(),

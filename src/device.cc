@@ -23,20 +23,31 @@ SOFTWARE.
 */
 #include "device.hh"
 #include <iostream>
+#include <set>
 #include "vulkan_helpers.hh"
 #include "window.hh"
 #include "context.hh"
 
+constexpr const char* device_extensions[] = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+constexpr unsigned device_extensions_count =
+    sizeof(device_extensions) / sizeof(const char*);
+
 device::device(context& ctx, window& win)
 {
+    using namespace std::placeholders;
+
     std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(
         ctx.get_instance(),
-        win.get_surface()
+        std::bind(rate_device, _1, std::ref(win))
     );
 
     if(suitable.size() == 0)
     {
-        throw std::runtime_error("Failed to find a GPU with Vulkan support");
+        throw std::runtime_error(
+            "Failed to find a device with the required Vulkan extensions"
+        );
     }
 
     VkPhysicalDevice physical_device = suitable[0];
@@ -52,31 +63,23 @@ device::device(context& ctx, window& win)
         win.get_surface()
     );
 
+    std::set<int> unique_families = {
+        families.graphics_index,
+        families.present_index
+    };
+
     std::vector<VkDeviceQueueCreateInfo> queue_infos;
 
     float priority = 1.0f;
-    if(families.graphics_index >= 0)
+    for(int index: unique_families)
     {
-        VkDeviceQueueCreateInfo graphics = {};
-        graphics.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        graphics.queueFamilyIndex = families.graphics_index;
-        graphics.queueCount = 1;
-        graphics.pQueuePriorities = &priority;
+        VkDeviceQueueCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        info.queueFamilyIndex = index;
+        info.queueCount = 1;
+        info.pQueuePriorities = &priority;
 
-        queue_infos.push_back(graphics);
-    }
-
-    if(families.present_index >= 0
-       && families.graphics_index != families.present_index)
-    {
-        //TODO: Check if having an idle compute queue affects performance
-        VkDeviceQueueCreateInfo present = {};
-        present.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        present.queueFamilyIndex = families.present_index;
-        present.queueCount = 1;
-        present.pQueuePriorities = &priority;
-        
-        queue_infos.push_back(present);
+        queue_infos.push_back(info);
     }
 
     VkPhysicalDeviceFeatures features = {};
@@ -88,6 +91,8 @@ device::device(context& ctx, window& win)
     create_info.pEnabledFeatures = &features;
     create_info.ppEnabledLayerNames = config::validation_layers;
     create_info.enabledLayerCount = config::validation_layers_count;
+    create_info.ppEnabledExtensionNames = device_extensions;
+    create_info.enabledExtensionCount = device_extensions_count;
 
     VkResult err;
     if((err = vkCreateDevice(
@@ -123,4 +128,25 @@ device::~device()
         vkDestroyDevice(dev, nullptr);
         dev = VK_NULL_HANDLE;
     }
+}
+
+int device::rate_device(VkPhysicalDevice device, window& win)
+{
+    // Make sure required queue families are available
+    queue_families families = find_queue_families(device, win.get_surface());
+    if(families.graphics_index < 0 || families.present_index < 0)
+        return -1;
+
+    // Make sure required device extensions are available
+    if(!have_vulkan_device_extensions(
+            device, 
+            device_extensions,
+            device_extensions_count
+        ))
+    {
+        return -1;
+    }
+
+
+    return rate_vulkan_device(device);
 }

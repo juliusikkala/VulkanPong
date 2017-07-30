@@ -42,6 +42,12 @@ void ensure_vulkan_instance_extensions(
     uint32_t required_extensions_count
 );
 
+bool have_vulkan_device_extensions(
+    VkPhysicalDevice device,
+    const char* const* required_extensions,
+    uint32_t required_extensions_count
+);
+
 
 VkResult create_debug_report_callback(
     VkInstance instance,
@@ -64,19 +70,14 @@ void destroy_debug_report_callback(
 
 // A rating callback must return a higher number for a better device and
 // negative values for unsuitable devices.
-using rate_vulkan_device_callback =
-    std::function<int(VkPhysicalDevice, VkSurfaceKHR)>;
+using rate_vulkan_device_callback = std::function<int(VkPhysicalDevice)>;
 
 // Rates a device based on vendor and device type, preferring discrete GPUs and
 // AMD and Nvidia over Intel.
-int rate_vulkan_device(
-    VkPhysicalDevice device,
-    VkSurfaceKHR surface
-);
+int rate_vulkan_device(VkPhysicalDevice device);
 
 std::vector<VkPhysicalDevice> find_vulkan_devices(
     VkInstance instance,
-    VkSurfaceKHR surface,
     rate_vulkan_device_callback rate = rate_vulkan_device
 );
 

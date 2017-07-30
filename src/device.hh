@@ -38,5 +38,7 @@ public:
 private:
     VkDevice dev;
     VkQueue graphics_queue, present_queue;
+
+    static int rate_device(VkPhysicalDevice device, window& win);
 };
 #endif
