@@ -42,6 +42,7 @@ void ensure_vulkan_instance_extensions(
     uint32_t required_extensions_count
 );
 
+
 VkResult create_debug_report_callback(
     VkInstance instance,
     const VkDebugReportCallbackCreateInfoEXT* create_info,
@@ -55,23 +56,30 @@ void destroy_debug_report_callback(
     const VkAllocationCallbacks* allocator
 );
 
+void destroy_debug_report_callback(
+    VkInstance instance,
+    VkDebugReportCallbackEXT callback,
+    const VkAllocationCallbacks* allocator
+);
+
 // A rating callback must return a higher number for a better device and
 // negative values for unsuitable devices.
-using rate_vulkan_device_callback = std::function<int(
-    VkPhysicalDeviceProperties&,
-    VkPhysicalDeviceFeatures&
-)>;
+using rate_vulkan_device_callback = std::function<int(VkPhysicalDevice)>;
 
 // Rates a device based on vendor and device type, preferring discrete GPUs and
 // AMD and Nvidia over Intel.
-int rate_vulkan_device(
-    VkPhysicalDeviceProperties& properties,
-    VkPhysicalDeviceFeatures& features
-);
+int rate_vulkan_device(VkPhysicalDevice device);
 
 std::vector<VkPhysicalDevice> find_vulkan_devices(
     VkInstance instance,
     rate_vulkan_device_callback rate = rate_vulkan_device
+);
+
+// Returns the index of the first queue with the required flags. Returns a
+// negative index when none are found.
+int find_queue_family(
+    VkPhysicalDevice device,
+    VkQueueFlags required_flags
 );
 
 #endif

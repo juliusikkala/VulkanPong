@@ -230,10 +230,13 @@ void destroy_debug_report_callback(
         vkDestroyDebugReportCallbackEXT(instance, callback, allocator);
 }
 
-int rate_vulkan_device(
-    VkPhysicalDeviceProperties& properties,
-    VkPhysicalDeviceFeatures& features
-) {
+int rate_vulkan_device(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties properties;
+    VkPhysicalDeviceFeatures features;
+    vkGetPhysicalDeviceProperties(device, &properties);
+    vkGetPhysicalDeviceFeatures(device, &features);
+
     int score = 0;
 
     switch(properties.vendorID)
@@ -270,6 +273,10 @@ int rate_vulkan_device(
     default:
         break;
     }
+
+    int index = find_queue_family(device, VK_QUEUE_GRAPHICS_BIT);
+    if(index < 0)
+        return -1;
 
     return score;
 }
@@ -315,12 +322,8 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
 
     for(VkPhysicalDevice device: all_devices)
     {
-        VkPhysicalDeviceProperties properties;
-        VkPhysicalDeviceFeatures features;
-        vkGetPhysicalDeviceProperties(device, &properties);
-        vkGetPhysicalDeviceFeatures(device, &features);
 
-        int score = rate(properties, features);
+        int score = rate(device);
         scored_devices.push_back({device, score});
     }
 
@@ -343,4 +346,25 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     }
 
     return suitable_devices;
+}
+
+int find_queue_family(
+    VkPhysicalDevice device,
+    VkQueueFlags required_flags
+) {
+    uint32_t count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
+
+    std::vector<VkQueueFamilyProperties> families(count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families.data());
+
+    for(unsigned i = 0; i < families.size(); ++i)
+    {
+        if(families[i].queueCount > 0
+            && families[i].queueFlags & required_flags)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
