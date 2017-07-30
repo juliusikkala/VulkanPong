@@ -41,4 +41,17 @@ void ensure_vulkan_instance_extensions(
     uint32_t required_extensions_count
 );
 
+VkResult create_debug_report_callback(
+    VkInstance instance,
+    const VkDebugReportCallbackCreateInfoEXT* create_info,
+    const VkAllocationCallbacks* allocator,
+    VkDebugReportCallbackEXT* callback
+);
+
+void destroy_debug_report_callback(
+    VkInstance instance,
+    VkDebugReportCallbackEXT callback,
+    const VkAllocationCallbacks* allocator
+);
+
 #endif

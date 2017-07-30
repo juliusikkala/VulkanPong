@@ -25,6 +25,7 @@ SOFTWARE.
 #define PONG_CONTEXT_HH
 #include "config.hh"
 #include <vulkan/vulkan.h>
+#include <cstdint>
 #include <SDL2/SDL_syswm.h>
 
 class context
@@ -41,11 +42,30 @@ public:
 private:
     friend class window;
 
+
     static bool& exists();
 
     bool inited_sdl;
     SDL_SYSWM_TYPE wm_type;
     VkInstance instance;
+
+#ifdef DEBUG
+    void create_debug_callback();
+    void destroy_debug_callback();
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
+        VkDebugReportFlagsEXT flags,
+        VkDebugReportObjectTypeEXT object_type,
+        uint64_t object,
+        size_t location,
+        int32_t message_code,
+        const char* layer_prefix,
+        const char* message,
+        void* user_data
+    );
+
+    VkDebugReportCallbackEXT callback;
+#endif
 };
 
 #endif

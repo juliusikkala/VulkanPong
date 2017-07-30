@@ -207,3 +207,33 @@ void ensure_vulkan_instance_extensions(
 
     delete [] available_extensions;
 }
+
+VkResult create_debug_report_callback(
+    VkInstance instance,
+    const VkDebugReportCallbackCreateInfoEXT* create_info,
+    const VkAllocationCallbacks* allocator,
+    VkDebugReportCallbackEXT* callback
+) {
+    PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT =
+        (PFN_vkCreateDebugReportCallbackEXT) vkGetInstanceProcAddr(
+            instance,
+            "vkCreateDebugReportCallbackEXT"
+        );
+    if(vkCreateDebugReportCallbackEXT)
+        return vkCreateDebugReportCallbackEXT(instance, create_info, allocator, callback);
+    else return VK_ERROR_EXTENSION_NOT_PRESENT;
+}
+
+void destroy_debug_report_callback(
+    VkInstance instance,
+    VkDebugReportCallbackEXT callback,
+    const VkAllocationCallbacks* allocator
+) {
+    PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT =
+        (PFN_vkDestroyDebugReportCallbackEXT) vkGetInstanceProcAddr(
+            instance,
+            "vkDestroyDebugReportCallbackEXT"
+        );
+    if(vkDestroyDebugReportCallbackEXT)
+        vkDestroyDebugReportCallbackEXT(instance, callback, allocator);
+}

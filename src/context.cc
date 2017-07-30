@@ -24,6 +24,7 @@ SOFTWARE.
 #include "context.hh"
 #include <stdexcept>
 #include <SDL2/SDL.h>
+#include <iostream>
 #include "vulkan_helpers.hh"
 
 SDL_SYSWM_TYPE get_wm_type()
@@ -60,13 +61,11 @@ context::context()
         config::patch
     );
 
-    std::vector<const char*> layers;
-    if(config::validate)
-        layers.push_back("VK_LAYER_LUNARG_standard_validation");
-
     std::vector<const char*> extensions({
         VK_KHR_SURFACE_EXTENSION_NAME,
+    #ifdef DEBUG
         VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+    #endif
     });
 
     switch(wm_type)
@@ -101,8 +100,8 @@ context::context()
     VkInstanceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
-    create_info.enabledLayerCount = layers.size();
-    create_info.ppEnabledLayerNames = layers.data();
+    create_info.enabledLayerCount = config::validation_layers_count;
+    create_info.ppEnabledLayerNames = config::validation_layers;
     create_info.enabledExtensionCount = extensions.size();
     create_info.ppEnabledExtensionNames = extensions.data();
 
@@ -129,18 +128,31 @@ context::context()
         );
     }
 
+#ifdef DEBUG
+    create_debug_callback();
+#endif
+
     return;
 }
 
 context::context(context&& other)
-: inited_sdl(other.inited_sdl), wm_type(other.wm_type), instance(other.instance)
+: inited_sdl(other.inited_sdl), wm_type(other.wm_type),
+  instance(other.instance)
 {
+#ifdef DEBUG
+    other.destroy_debug_callback();
+    create_debug_callback();
+#endif
     other.inited_sdl = false;
     other.instance = nullptr;
 }
 
 context::~context()
 {
+#ifdef DEBUG
+    destroy_debug_callback();
+#endif
+
     if(instance)
         vkDestroyInstance(instance, nullptr);
 
@@ -153,3 +165,52 @@ bool& context::exists()
     static bool e = false;
     return e;
 }
+
+#ifdef DEBUG
+void context::create_debug_callback()
+{
+    VkDebugReportCallbackCreateInfoEXT info = {};
+    info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    info.flags =
+        VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    info.pfnCallback = debug_callback;
+
+    VkResult err;
+    if((err = create_debug_report_callback(
+            instance,
+            &info,
+            nullptr,
+            &callback
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to create debug callback: "
+            + get_vulkan_result_string(err)
+        );
+    }
+}
+
+void context::destroy_debug_callback()
+{
+    if(callback)
+    {
+        destroy_debug_report_callback(instance, callback, nullptr);
+        callback = nullptr;
+    }
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL context::debug_callback(
+    VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT object_type,
+    uint64_t object,
+    size_t location,
+    int32_t message_code,
+    const char* layer_prefix,
+    const char* message,
+    void* user_data
+) {
+    std::cerr << layer_prefix << ": " << message << std::endl;
+
+    return VK_FALSE;
+}
+#endif

@@ -1,5 +1,6 @@
 project('VulkanPong', 'cpp')
 
+# Config
 conf_data = configuration_data()
 conf_data.set('major', '0')
 conf_data.set('minor', '0')
@@ -15,8 +16,31 @@ elif sys == 'windows'
   conf_data.set('USE_WIN32', true)
 endif
 
+validation_layers = [
+  'VK_LAYER_LUNARG_standard_validation'
+]
+validation_layers_escaped = []
+foreach layer : validation_layers
+  validation_layers_escaped += '"@0@"'.format(layer)
+endforeach
 
-conf_data.set('validate', 'false')
+conf_data.set(
+  'validation_layers',
+  ', '.join(validation_layers_escaped)
+)
+
+debug = get_option('buildtype').startswith('debug')
+
+conf_data.set('USE_VALIDATION_LAYERS', debug)
+conf_data.set('DEBUG', debug)
+
 conf_data.set('name', 'Vulkan Pong')
 
+# Additional targets
+run_target(
+  'run',
+  command : ['scripts/run_debug.sh']
+)
+
+# Source
 subdir('src')

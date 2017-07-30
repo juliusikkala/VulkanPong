@@ -27,6 +27,9 @@ SOFTWARE.
 #mesondefine USE_WIN32
 #mesondefine USE_UNIX
 
+#mesondefine USE_VALIDATION_LAYERS
+#mesondefine DEBUG
+
 #ifdef USE_WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(USE_UNIX)
@@ -42,7 +45,9 @@ namespace config
     constexpr unsigned major = @major@;
     constexpr unsigned minor = @minor@;
     constexpr unsigned patch = @patch@;
-    constexpr bool validate = @validate@;
+    constexpr const char* const validation_layers[] = {@validation_layers@};
+    constexpr unsigned validation_layers_count =
+        sizeof(validation_layers) / sizeof(const char*);
 };
 
 #endif
