@@ -7,6 +7,7 @@ configure_file(
 src = [
   'main.cc',
   'context.cc',
+  'device.cc',
   'window.cc',
   'vulkan_helpers.cc'
 ]

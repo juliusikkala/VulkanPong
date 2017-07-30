@@ -21,58 +21,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#ifndef PONG_CONTEXT_HH
-#define PONG_CONTEXT_HH
+#ifndef PONG_DEVICE_HH
+#define PONG_DEVICE_HH
 #include "config.hh"
 #include <vulkan/vulkan.h>
-#include <cstdint>
-#include <SDL2/SDL_syswm.h>
-#include "device.hh"
 
-class context
+class context;
+class device
 {
 public:
-    /**
-     * \brief Creates a context, ensuring that only one exists at a time.
-     */
-    context();
-    context(context&& other);
-    ~context();
-
-    device create_device() const;
+    device(device&& other);
+    ~device();
 
 private:
-    friend class window;
-    friend class device;
+    friend class context;
+    device(VkPhysicalDevice physical_device);
 
-    VkInstance get_instance() const;
-
-    static bool& exists();
-
-    void create_instance();
-    void destroy_instance();
-
-    bool inited_sdl;
-    SDL_SYSWM_TYPE wm_type;
-    VkInstance instance;
-
-#ifdef DEBUG
-    void create_debug_callback();
-    void destroy_debug_callback();
-
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
-        VkDebugReportFlagsEXT flags,
-        VkDebugReportObjectTypeEXT object_type,
-        uint64_t object,
-        size_t location,
-        int32_t message_code,
-        const char* layer_prefix,
-        const char* message,
-        void* user_data
-    );
-
-    VkDebugReportCallbackEXT callback;
-#endif
+    VkDevice dev;
+    VkQueue graphics_queue, compute_queue;
 };
-
 #endif

@@ -59,14 +59,13 @@ context::context()
 #ifdef DEBUG
     create_debug_callback();
 #endif
-    find_device();
 
     return;
 }
 
 context::context(context&& other)
 : inited_sdl(other.inited_sdl), wm_type(other.wm_type),
-  instance(other.instance), device(other.device)
+  instance(other.instance)
 {
 #ifdef DEBUG
     other.destroy_debug_callback();
@@ -74,7 +73,6 @@ context::context(context&& other)
 #endif
     other.inited_sdl = false;
     other.instance = VK_NULL_HANDLE;
-    other.device = VK_NULL_HANDLE;
 }
 
 context::~context()
@@ -87,6 +85,31 @@ context::~context()
 
     if(inited_sdl)
         SDL_Quit();
+}
+
+device context::create_device() const
+{
+    std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(instance);
+
+    if(suitable.size() == 0)
+    {
+        throw std::runtime_error("Failed to find a GPU with Vulkan support");
+    }
+
+    VkPhysicalDevice physical_device = suitable[0];
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+
+    std::cout << properties.deviceName
+              << std::endl;
+
+    return device(physical_device);
+}
+
+VkInstance context::get_instance() const
+{
+    return instance;
 }
 
 bool& context::exists()
@@ -178,24 +201,6 @@ void context::destroy_instance()
         vkDestroyInstance(instance, nullptr);
         instance = VK_NULL_HANDLE;
     }
-}
-
-void context::find_device()
-{
-    std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(instance);
-
-    if(suitable.size() == 0)
-    {
-        throw std::runtime_error("Failed to find a GPU with Vulkan support");
-    }
-
-    device = suitable[0];
-
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(device, &properties);
-
-    std::cout << properties.deviceName
-              << std::endl;
 }
 
 #ifdef DEBUG

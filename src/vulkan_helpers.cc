@@ -274,8 +274,8 @@ int rate_vulkan_device(VkPhysicalDevice device)
         break;
     }
 
-    int index = find_queue_family(device, VK_QUEUE_GRAPHICS_BIT);
-    if(index < 0)
+    queue_families families= find_queue_families(device);
+    if(families.graphics_index < 0)
         return -1;
 
     return score;
@@ -321,11 +321,7 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     }
 
     for(VkPhysicalDevice device: all_devices)
-    {
-
-        int score = rate(device);
-        scored_devices.push_back({device, score});
-    }
+        scored_devices.push_back({device, rate(device)});
 
     std::sort(
         scored_devices.begin(),
@@ -348,23 +344,30 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     return suitable_devices;
 }
 
-int find_queue_family(
-    VkPhysicalDevice device,
-    VkQueueFlags required_flags
-) {
+queue_families find_queue_families(VkPhysicalDevice device) {
     uint32_t count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
 
     std::vector<VkQueueFamilyProperties> families(count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families.data());
 
+    queue_families found_families = {-1};
+
     for(unsigned i = 0; i < families.size(); ++i)
     {
-        if(families[i].queueCount > 0
-            && families[i].queueFlags & required_flags)
+        if(families[i].queueCount <= 0)
+            continue;
+
+        if(found_families.graphics_index < 0
+            && families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            return i;
+            found_families.graphics_index = i;
+        }
+        if(found_families.compute_index < 0
+            && families[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            found_families.compute_index = i;
         }
     }
-    return -1;
+    return found_families;
 }

@@ -75,11 +75,12 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     rate_vulkan_device_callback rate = rate_vulkan_device
 );
 
-// Returns the index of the first queue with the required flags. Returns a
-// negative index when none are found.
-int find_queue_family(
-    VkPhysicalDevice device,
-    VkQueueFlags required_flags
-);
+
+struct queue_families
+{
+    int graphics_index;
+    int compute_index;
+};
+queue_families find_queue_families(VkPhysicalDevice device);
 
 #endif

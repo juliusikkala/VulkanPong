@@ -1,0 +1,102 @@
+/*
+MIT License
+
+Copyright (c) 2017 Julius Ikkala
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+#include "device.hh"
+#include "vulkan_helpers.hh"
+
+device::device(VkPhysicalDevice physical_device)
+{
+    queue_families families = find_queue_families(physical_device);
+
+    std::vector<VkDeviceQueueCreateInfo> queue_infos;
+
+    float priority = 1.0f;
+    if(families.graphics_index >= 0)
+    {
+        VkDeviceQueueCreateInfo graphics = {};
+        graphics.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        graphics.queueFamilyIndex = families.graphics_index;
+        graphics.queueCount = 1;
+        graphics.pQueuePriorities = &priority;
+
+        queue_infos.push_back(graphics);
+    }
+
+    if(families.compute_index >= 0
+       && families.graphics_index != families.compute_index)
+    {
+        //TODO: Check if having an idle compute queue affects performance
+        VkDeviceQueueCreateInfo compute = {};
+        compute.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        compute.queueFamilyIndex = families.compute_index;
+        compute.queueCount = 1;
+        compute.pQueuePriorities = &priority;
+        
+        queue_infos.push_back(compute);
+    }
+
+    VkPhysicalDeviceFeatures features = {};
+
+    VkDeviceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.queueCreateInfoCount = queue_infos.size();
+    create_info.pQueueCreateInfos = queue_infos.data();
+    create_info.pEnabledFeatures = &features;
+    create_info.ppEnabledLayerNames = config::validation_layers;
+    create_info.enabledLayerCount = config::validation_layers_count;
+
+    VkResult err;
+    if((err = vkCreateDevice(
+            physical_device,
+            &create_info,
+            nullptr,
+            &dev
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to create a logical device: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
+    vkGetDeviceQueue(dev, families.compute_index, 0, &compute_queue);
+}
+
+device::device(device&& other)
+: dev(other.dev), graphics_queue(other.graphics_queue),
+  compute_queue(other.compute_queue)
+{
+    other.dev = VK_NULL_HANDLE;
+    other.graphics_queue = VK_NULL_HANDLE;
+    other.compute_queue = VK_NULL_HANDLE;
+}
+
+device::~device()
+{
+    if(dev)
+    {
+        vkDestroyDevice(dev, nullptr);
+        dev = VK_NULL_HANDLE;
+    }
+}
