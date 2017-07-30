@@ -26,17 +26,16 @@ SOFTWARE.
 #include "config.hh"
 #include <vulkan/vulkan.h>
 
+class window;
 class context;
 class device
 {
 public:
+    device(context& ctx, window& win);
     device(device&& other);
     ~device();
 
 private:
-    friend class context;
-    device(VkPhysicalDevice physical_device);
-
     VkDevice dev;
     VkQueue graphics_queue, compute_queue;
 };

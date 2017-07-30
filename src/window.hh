@@ -25,6 +25,7 @@ SOFTWARE.
 #define PONG_WINDOW_HH
 #include "config.hh"
 #include <SDL2/SDL.h>
+#include <vulkan/vulkan.h>
 
 class context;
 class window
@@ -45,7 +46,9 @@ public:
     ~window();
 
 private:
+    context& ctx;
     SDL_Window* win;
+    VkSurfaceKHR surface;
 };
 
 #endif

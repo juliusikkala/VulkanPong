@@ -53,7 +53,7 @@ context::context()
     }
     inited_sdl = true;
 
-    wm_type = get_wm_type();
+    wm_type = ::get_wm_type();
 
     create_instance();
 #ifdef DEBUG
@@ -61,18 +61,6 @@ context::context()
 #endif
 
     return;
-}
-
-context::context(context&& other)
-: inited_sdl(other.inited_sdl), wm_type(other.wm_type),
-  instance(other.instance)
-{
-#ifdef DEBUG
-    other.destroy_debug_callback();
-    create_debug_callback();
-#endif
-    other.inited_sdl = false;
-    other.instance = VK_NULL_HANDLE;
 }
 
 context::~context()
@@ -87,29 +75,14 @@ context::~context()
         SDL_Quit();
 }
 
-device context::create_device() const
-{
-    std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(instance);
-
-    if(suitable.size() == 0)
-    {
-        throw std::runtime_error("Failed to find a GPU with Vulkan support");
-    }
-
-    VkPhysicalDevice physical_device = suitable[0];
-
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-
-    std::cout << properties.deviceName
-              << std::endl;
-
-    return device(physical_device);
-}
-
 VkInstance context::get_instance() const
 {
     return instance;
+}
+
+SDL_SYSWM_TYPE context::get_wm_type() const
+{
+    return wm_type;
 }
 
 bool& context::exists()
@@ -135,19 +108,21 @@ void context::create_instance()
 
     switch(wm_type)
     {
-    #ifdef USE_WIN32
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
     case SDL_SYSWM_WINDOWS:
         extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
         break;
-    #endif
-    #ifdef USE_UNIX
+#endif
+#ifdef SDL_VIDEO_DRIVER_X11
     case SDL_SYSWM_X11:
-        extensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
         break;
+#endif
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
     case SDL_SYSWM_WAYLAND:
         extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
         break;
-    #endif
+#endif
     default:
         throw std::runtime_error(
             "Unsupported WM type: " + std::to_string(wm_type)

@@ -24,36 +24,110 @@ SOFTWARE.
 #include "window.hh"
 #include <stdexcept>
 #include <SDL2/SDL_syswm.h>
+#include "context.hh"
+#include "vulkan_helpers.hh"
 
-static void* get_native_window_handle(SDL_Window* win)
-{
+using create_surface_fn = VkResult(*)(
+    VkInstance,
+    const void*,
+    const VkAllocationCallbacks*,
+    VkSurfaceKHR*
+);
+
+VkSurfaceKHR create_window_surface(
+    VkInstance instance,
+    SDL_Window* win
+) {
+    VkSurfaceKHR surface;
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version);
+
+    const char* surface_creator_name;
+    void* create_info;
+
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
+    VkWin32SurfaceCreateInfoKHR win32_info = {};
+#endif
+#ifdef SDL_VIDEO_DRIVER_X11
+    VkXlibSurfaceCreateInfoKHR xlib_info = {};
+#endif
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
+    VkWaylandSurfaceCreateInfoKHR wayland_info = {};
+#endif
 
     if(SDL_GetWindowWMInfo(win, &info))
     {
         switch(info.subsystem)
         {
-        #ifdef SDL_VIDEO_DRIVER_WINDOWS
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
         case SDL_SYSWM_WINDOWS:
-            return info.info.win.window;
-        #endif
-        #ifdef SDL_VIDEO_DRIVER_X11
+            win32_info.sType =
+                VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+            win32_info.hwnd = info.info.win.window;
+            win32_info.hinstance = info.info.win.hinstance;
+
+            surface_creator_name = "vkCreateWin32SurfaceKHR";
+            create_info = &win32_info;
+            break;
+#endif
+#ifdef SDL_VIDEO_DRIVER_X11
         case SDL_SYSWM_X11:
-            return (void*)info.info.x11.window;
-        #endif
-        #ifdef SDL_VIDEO_DRIVER_WAYLAND
+            xlib_info.sType =
+                VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+            xlib_info.dpy = info.info.x11.display;
+            xlib_info.window = info.info.x11.window;
+
+            surface_creator_name = "vkCreateXlibSurfaceKHR";
+            create_info = &xlib_info;
+            break;
+#endif
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
         case SDL_SYSWM_WAYLAND:
-            return info.info.wl.surface;
-        #endif
+            wayland_info.sType =
+                VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+            wayland_info.display = info.info.wl.display;
+            wayland_info.surface = info.info.wl.surface;
+
+            surface_creator_name = "vkCreateWaylandSurfaceKHR";
+            create_info = &wayland_info;
+            break;
+#endif
         default:
-            return nullptr;
+            throw std::runtime_error(
+                "Unknown WM type: "
+                + std::to_string(info.subsystem)
+            );
         }
     }
-    return nullptr;
+    else
+    {
+        throw std::runtime_error(SDL_GetError());
+    }
+
+    create_surface_fn create_surface = (create_surface_fn)
+        vkGetInstanceProcAddr(instance, surface_creator_name);
+                
+    if(!create_surface)
+    {
+        throw std::runtime_error(
+            "Could not get address of " + std::string(surface_creator_name)
+        );
+    }
+
+    VkResult err = create_surface(instance, create_info, nullptr, &surface);
+
+    if(err != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to create window surface: "
+            + get_vulkan_result_string(err));
+    }
+
+    return surface;
 }
 
 window::window(context& ctx, const params& p)
+: ctx(ctx)
 {
     win = SDL_CreateWindow(
         p.title,
@@ -62,20 +136,25 @@ window::window(context& ctx, const params& p)
         p.w, p.h,
         (p.fullscreen && SDL_WINDOW_FULLSCREEN)
     );
+
     if(!win)
     {
-        throw new std::runtime_error(SDL_GetError());
+        throw std::runtime_error(SDL_GetError());
     }
+
+    surface = create_window_surface(ctx.get_instance(), win);
 }
     
 window::window(window&& other)
-: win(other.win)
+: ctx(other.ctx), win(other.win), surface(other.surface)
 {
     other.win = nullptr;
+    other.surface = VK_NULL_HANDLE;
 }
 
 window::~window()
 {
+    if(surface) vkDestroySurfaceKHR(ctx.get_instance(), surface, nullptr);
     if(win) SDL_DestroyWindow(win);
 }
 

@@ -28,8 +28,8 @@ SOFTWARE.
 int main()
 {
     context ctx;
-    device dev(ctx.create_device());
     window win(ctx);
+    device dev(ctx, win);
     std::cout<<"This will become a pong game some day..."<<std::endl;
     return 0;
 }

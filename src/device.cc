@@ -22,10 +22,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #include "device.hh"
+#include <iostream>
 #include "vulkan_helpers.hh"
+#include "window.hh"
+#include "context.hh"
 
-device::device(VkPhysicalDevice physical_device)
+device::device(context& ctx, window& win)
 {
+    std::vector<VkPhysicalDevice> suitable = find_vulkan_devices(
+        ctx.get_instance()
+    );
+
+    if(suitable.size() == 0)
+    {
+        throw std::runtime_error("Failed to find a GPU with Vulkan support");
+    }
+
+    VkPhysicalDevice physical_device = suitable[0];
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+
+    std::cout << properties.deviceName
+              << std::endl;
+
     queue_families families = find_queue_families(physical_device);
 
     std::vector<VkDeviceQueueCreateInfo> queue_infos;

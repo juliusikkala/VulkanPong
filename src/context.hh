@@ -36,16 +36,16 @@ public:
      * \brief Creates a context, ensuring that only one exists at a time.
      */
     context();
-    context(context&& other);
+    context(context&& other) = delete;
+    context(const context& other) = delete;
     ~context();
-
-    device create_device() const;
 
 private:
     friend class window;
     friend class device;
 
     VkInstance get_instance() const;
+    SDL_SYSWM_TYPE get_wm_type() const;
 
     static bool& exists();
 
