@@ -28,7 +28,7 @@ How to build and run
 * Install [meson](http://mesonbuild.com/Getting-meson.html).
 * Run `meson build`
 * `ninja -C build`
-* `build/src/pong`
+* `ninja -C build run`
 
 Attributions
 ============

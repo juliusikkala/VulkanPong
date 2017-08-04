@@ -137,16 +137,27 @@ int device::rate_device(VkPhysicalDevice device, window& win)
     if(families.graphics_index < 0 || families.present_index < 0)
         return -1;
 
+    std::vector<VkSurfaceFormatKHR> formats = get_compatible_surface_formats(
+        device,
+        win.get_surface()
+    );
+
+    std::vector<VkPresentModeKHR> modes = get_compatible_present_modes(
+        device,
+        win.get_surface()
+    );
+
+    // Must have at least one format and mode compatible with the surface
+    if(formats.empty() || modes.empty())
+        return -1;
+
     // Make sure required device extensions are available
     if(!have_vulkan_device_extensions(
             device, 
             device_extensions,
             device_extensions_count
         ))
-    {
         return -1;
-    }
-
 
     return rate_vulkan_device(device);
 }

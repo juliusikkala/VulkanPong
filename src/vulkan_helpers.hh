@@ -81,14 +81,24 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     rate_vulkan_device_callback rate = rate_vulkan_device
 );
 
-
 struct queue_families
 {
     int graphics_index;
     int compute_index;
     int present_index;
 };
+
 queue_families find_queue_families(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+);
+
+std::vector<VkSurfaceFormatKHR> get_compatible_surface_formats(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+);
+
+std::vector<VkPresentModeKHR> get_compatible_present_modes(
     VkPhysicalDevice device,
     VkSurfaceKHR surface
 );

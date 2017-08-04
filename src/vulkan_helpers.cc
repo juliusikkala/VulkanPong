@@ -448,3 +448,39 @@ queue_families find_queue_families(
     }
     return found_families;
 }
+
+std::vector<VkSurfaceFormatKHR> get_compatible_surface_formats(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+) {
+    unsigned count = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
+
+    std::vector<VkSurfaceFormatKHR> formats(count);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(
+        device,
+        surface,
+        &count,
+        formats.data()
+    );
+    return formats;
+}
+
+std::vector<VkPresentModeKHR> get_compatible_present_modes(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface
+) {
+    unsigned count = 0;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, nullptr);
+
+
+    std::vector<VkPresentModeKHR> modes(count);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(
+        device,
+        surface,
+        &count,
+        modes.data()
+    );
+    return modes;
+}
+
