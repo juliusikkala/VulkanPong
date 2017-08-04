@@ -137,7 +137,7 @@ int device::rate_device(VkPhysicalDevice device, window& win)
     if(families.graphics_index < 0 || families.present_index < 0)
         return -1;
 
-    std::vector<VkSurfaceFormatKHR> formats = get_compatible_surface_formats(
+    std::vector<VkSurfaceFormatKHR> formats = find_surface_formats(
         device,
         win.get_surface()
     );

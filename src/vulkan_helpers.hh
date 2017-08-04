@@ -93,9 +93,22 @@ queue_families find_queue_families(
     VkSurfaceKHR surface
 );
 
-std::vector<VkSurfaceFormatKHR> get_compatible_surface_formats(
+// A rating callback must return a higher number for a better format and
+// negative values for unsuitable formats
+using rate_surface_format_callback =
+    std::function<int(const VkSurfaceFormatKHR&)>;
+
+// Prefers VK_FORMAT_B8G8R8A8_UNORM and VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+int rate_surface_format(const VkSurfaceFormatKHR& device);
+
+std::vector<VkSurfaceFormatKHR> find_surface_formats(
     VkPhysicalDevice device,
-    VkSurfaceKHR surface
+    VkSurfaceKHR surface,
+    const VkSurfaceFormatKHR& default_format = {
+        VK_FORMAT_B8G8R8A8_UNORM,
+        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+    },
+    rate_surface_format_callback rate = rate_surface_format
 );
 
 std::vector<VkPresentModeKHR> get_compatible_present_modes(

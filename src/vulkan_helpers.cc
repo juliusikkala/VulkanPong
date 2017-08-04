@@ -359,6 +359,7 @@ std::vector<VkPhysicalDevice> find_vulkan_devices(
     std::vector<VkPhysicalDevice> all_devices(device_count);
     using scored_device = std::pair<VkPhysicalDevice, int>;
     std::vector<scored_device> scored_devices;
+    scored_devices.reserve(device_count);
 
     if((err = vkEnumeratePhysicalDevices(
             instance,
@@ -449,9 +450,53 @@ queue_families find_queue_families(
     return found_families;
 }
 
-std::vector<VkSurfaceFormatKHR> get_compatible_surface_formats(
+int rate_surface_format(const VkSurfaceFormatKHR& format)
+{
+    // TODO: This could be more robust...
+    int score = 0;
+    switch(format.format)
+    {
+    case VK_FORMAT_B8G8R8A8_UNORM:
+        score += 100;
+        break;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+        score += 99;
+        break;
+    case VK_FORMAT_R8G8B8_UNORM:
+        score += 98;
+        break;
+    case VK_FORMAT_B8G8R8_UNORM:
+        score += 97;
+        break;
+    case VK_FORMAT_R16G16B16A16_UNORM:
+        score += 96;
+        break;
+    case VK_FORMAT_R16G16B16_UNORM:
+        score += 95;
+        break;
+    default:
+        return -1;
+    }
+
+    switch(format.format)
+    {
+    // Most monitors are calibrated for sRGB
+    case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
+        score += 100;
+        break;
+    // Other color spaces are _probably_ usable
+    default:
+        score += 0;
+        break;
+    }
+    return score;
+}
+
+std::vector<VkSurfaceFormatKHR> find_surface_formats(
     VkPhysicalDevice device,
-    VkSurfaceKHR surface
+    VkSurfaceKHR surface,
+    const VkSurfaceFormatKHR& default_format,
+    rate_surface_format_callback rate
 ) {
     unsigned count = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
@@ -463,7 +508,50 @@ std::vector<VkSurfaceFormatKHR> get_compatible_surface_formats(
         &count,
         formats.data()
     );
-    return formats;
+
+    if(formats.empty())
+    {
+        throw std::runtime_error(
+            "Empty 'formats' vector given to find_surface_format"
+        );
+    }
+
+    if(formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
+        return {default_format};
+
+    using scored_format = std::pair<VkSurfaceFormatKHR, int>;
+    std::vector<scored_format> scored_formats;
+    scored_formats.reserve(formats.size());
+
+    for(const VkSurfaceFormatKHR& format: formats)
+        scored_formats.push_back({format, rate(format)});
+
+    std::sort(
+        scored_formats.begin(),
+        scored_formats.end(),
+        [](const scored_format& a, const scored_format& b){
+            return a.second > b.second;
+        }
+    );
+    
+    if(scored_formats[0].second < 0)
+    {
+        throw std::runtime_error(
+            "Unable to find compatible surface formats"
+        );
+    }
+
+    std::vector<VkSurfaceFormatKHR> suitable_formats;
+
+    for(scored_format format: scored_formats)
+    {
+        if(format.second >= 0)
+        {
+            suitable_formats.push_back(format.first);
+        }
+    }
+
+    return suitable_formats;
 }
 
 std::vector<VkPresentModeKHR> get_compatible_present_modes(
@@ -473,7 +561,6 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
     unsigned count = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, nullptr);
 
-
     std::vector<VkPresentModeKHR> modes(count);
     vkGetPhysicalDeviceSurfacePresentModesKHR(
         device,
@@ -481,6 +568,6 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
         &count,
         modes.data()
     );
+
     return modes;
 }
-
