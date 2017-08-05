@@ -129,6 +129,9 @@ VkSurfaceKHR create_window_surface(
 window::window(context& ctx, const params& p)
 : ctx(ctx)
 {
+    using namespace std::placeholders;
+
+    // Create window
     win = SDL_CreateWindow(
         p.title,
         SDL_WINDOWPOS_UNDEFINED,
@@ -142,18 +145,27 @@ window::window(context& ctx, const params& p)
         throw std::runtime_error(SDL_GetError());
     }
 
+    // Create surface
     surface = create_window_surface(ctx.get_instance(), win);
+
+    // Create device
+    ctx.allocate_device(surface, dev, graphics_queue, present_queue);
 }
     
 window::window(window&& other)
-: ctx(other.ctx), win(other.win), surface(other.surface)
+: ctx(other.ctx), win(other.win), surface(other.surface), dev(other.dev),
+  graphics_queue(other.graphics_queue), present_queue(other.present_queue)
 {
     other.win = nullptr;
     other.surface = VK_NULL_HANDLE;
+    other.dev = VK_NULL_HANDLE;
+    other.graphics_queue = VK_NULL_HANDLE;
+    other.present_queue = VK_NULL_HANDLE;
 }
 
 window::~window()
 {
+    if(dev) ctx.free_device(surface, dev);
     if(surface) vkDestroySurfaceKHR(ctx.get_instance(), surface, nullptr);
     if(win) SDL_DestroyWindow(win);
 }

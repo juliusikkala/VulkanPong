@@ -25,7 +25,14 @@ SOFTWARE.
 #include <stdexcept>
 #include <SDL2/SDL.h>
 #include <iostream>
+#include <set>
 #include "vulkan_helpers.hh"
+
+constexpr const char* device_extensions[] = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+constexpr unsigned device_extensions_count =
+    sizeof(device_extensions) / sizeof(const char*);
 
 SDL_SYSWM_TYPE get_wm_type()
 {
@@ -41,6 +48,19 @@ SDL_SYSWM_TYPE get_wm_type()
 
     SDL_DestroyWindow(win);
     return info.subsystem;
+}
+
+static int rate_device(VkPhysicalDevice device)
+{
+    // Make sure required device extensions are available
+    if(!have_vulkan_device_extensions(
+            device, 
+            device_extensions,
+            device_extensions_count
+        ))
+        return -1;
+
+    return rate_vulkan_device(device);
 }
 
 context::context()
@@ -60,7 +80,14 @@ context::context()
     create_debug_callback();
 #endif
 
-    return;
+    devices = find_vulkan_devices(instance, rate_device);
+
+    if(devices.size() == 0)
+    {
+        throw std::runtime_error(
+            "Failed to find a device with the required Vulkan extensions"
+        );
+    }
 }
 
 context::~context()
@@ -83,6 +110,110 @@ VkInstance context::get_instance() const
 SDL_SYSWM_TYPE context::get_wm_type() const
 {
     return wm_type;
+}
+
+void context::allocate_device(
+    VkSurfaceKHR surface,
+    VkDevice& dev,
+    VkQueue& graphics_queue,
+    VkQueue& present_queue
+) {
+    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
+    queue_families families;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> modes;
+
+    for(VkPhysicalDevice device: devices)
+    {
+        // Make sure required queue families are available
+        families = find_queue_families(device, surface);
+        if(families.graphics_index < 0 || families.present_index < 0)
+            continue;
+
+        formats = find_surface_formats(
+            device,
+            surface
+        );
+
+        modes = get_compatible_present_modes(
+            device,
+            surface
+        );
+
+        // Must have at least one format and mode compatible with the surface
+        if(formats.empty() || modes.empty())
+            continue;
+
+        physical_device = device;
+        break;
+    }
+
+    if(physical_device == VK_NULL_HANDLE)
+    {
+        throw std::runtime_error(
+            "Failed to find a device compatible with the surface!"
+        );
+    }
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+
+    std::cout << properties.deviceName
+              << std::endl;
+
+    std::set<int> unique_families = {
+        families.graphics_index,
+        families.present_index
+    };
+    std::vector<VkDeviceQueueCreateInfo> queue_infos;
+
+    float priority = 1.0f;
+    for(int index: unique_families)
+    {
+        VkDeviceQueueCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        info.queueFamilyIndex = index;
+        info.queueCount = 1;
+        info.pQueuePriorities = &priority;
+
+        queue_infos.push_back(info);
+    }
+
+    VkPhysicalDeviceFeatures features = {};
+
+    VkDeviceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.queueCreateInfoCount = queue_infos.size();
+    create_info.pQueueCreateInfos = queue_infos.data();
+    create_info.pEnabledFeatures = &features;
+    create_info.ppEnabledLayerNames = config::validation_layers;
+    create_info.enabledLayerCount = config::validation_layers_count;
+    create_info.ppEnabledExtensionNames = device_extensions;
+    create_info.enabledExtensionCount = device_extensions_count;
+
+    VkResult err;
+    if((err = vkCreateDevice(
+            physical_device,
+            &create_info,
+            nullptr,
+            &dev
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to create a logical device: "
+            + get_vulkan_result_string(err)
+        );
+    }
+
+    vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
+    vkGetDeviceQueue(dev, families.present_index, 0, &present_queue);
+}
+
+void context::free_device(
+    VkSurfaceKHR surface,
+    VkDevice dev
+) {
+    vkDestroyDevice(dev, nullptr);
 }
 
 bool& context::exists()

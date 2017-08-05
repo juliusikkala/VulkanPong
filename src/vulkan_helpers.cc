@@ -571,3 +571,36 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
 
     return modes;
 }
+
+VkExtent2D find_swap_extent(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface,
+    VkExtent2D preferred
+) {
+    VkSurfaceCapabilitiesKHR capabilities;
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &capabilities);
+
+    if(capabilities.currentExtent.width != 0xFFFFFFFF)
+    {
+        return capabilities.currentExtent;
+    }
+
+    preferred.width = std::max(
+        capabilities.minImageExtent.width,
+        std::min(
+            capabilities.maxImageExtent.width,
+            preferred.width
+        )
+    );
+    preferred.height = std::max(
+        capabilities.minImageExtent.height,
+        std::min(
+            capabilities.maxImageExtent.height,
+            preferred.height
+        )
+    );
+
+    return preferred;
+}
+

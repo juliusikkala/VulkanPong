@@ -25,9 +25,9 @@ SOFTWARE.
 #define PONG_CONTEXT_HH
 #include "config.hh"
 #include <vulkan/vulkan.h>
-#include <cstdint>
 #include <SDL2/SDL_syswm.h>
-#include "device.hh"
+#include <cstdint>
+#include <vector>
 
 class context
 {
@@ -42,10 +42,23 @@ public:
 
 private:
     friend class window;
-    friend class device;
 
     VkInstance get_instance() const;
     SDL_SYSWM_TYPE get_wm_type() const;
+
+    // By handling devices in the context it is easier to balance them
+    // across windows.
+    void allocate_device(
+        VkSurfaceKHR surface,
+        VkDevice& dev,
+        VkQueue& graphics_queue,
+        VkQueue& present_queue
+    );
+
+    void free_device(
+        VkSurfaceKHR surface,
+        VkDevice dev
+    );
 
     static bool& exists();
 
@@ -55,6 +68,7 @@ private:
     bool inited_sdl;
     SDL_SYSWM_TYPE wm_type;
     VkInstance instance;
+    std::vector<VkPhysicalDevice> devices;
 
 #ifdef DEBUG
     void create_debug_callback();

@@ -116,4 +116,10 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
     VkSurfaceKHR surface
 );
 
+VkExtent2D find_swap_extent(
+    VkPhysicalDevice device,
+    VkSurfaceKHR surface,
+    VkExtent2D preferred
+);
+
 #endif

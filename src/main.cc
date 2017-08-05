@@ -29,7 +29,6 @@ int main()
 {
     context ctx;
     window win(ctx);
-    device dev(ctx, win);
     std::cout<<"This will become a pong game some day..."<<std::endl;
     return 0;
 }
