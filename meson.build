@@ -42,5 +42,12 @@ run_target(
   command : ['scripts/run_debug.sh']
 )
 
+glsl_comp = find_program(
+  'glslangValidator',
+  '../scripts/glslangValidator.sh',
+  required : true
+)
+
+
 # Source
 subdir('src')
