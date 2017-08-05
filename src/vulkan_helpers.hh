@@ -28,6 +28,7 @@ SOFTWARE.
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <set>
 #include <functional>
 
 std::string get_vulkan_result_string(VkResult result);
@@ -117,8 +118,7 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
 );
 
 VkExtent2D find_swap_extent(
-    VkPhysicalDevice device,
-    VkSurfaceKHR surface,
+    const VkSurfaceCapabilitiesKHR& capabilities,
     VkExtent2D preferred
 );
 

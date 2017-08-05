@@ -28,6 +28,7 @@ SOFTWARE.
 #include <SDL2/SDL_syswm.h>
 #include <cstdint>
 #include <vector>
+#include "vulkan_helpers.hh"
 
 class context
 {
@@ -51,8 +52,8 @@ private:
     void allocate_device(
         VkSurfaceKHR surface,
         VkDevice& dev,
-        VkQueue& graphics_queue,
-        VkQueue& present_queue
+        VkPhysicalDevice& physical_device,
+        queue_families& families
     );
 
     void free_device(

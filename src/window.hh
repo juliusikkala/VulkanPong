@@ -26,39 +26,49 @@ SOFTWARE.
 #include "config.hh"
 #include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
+#include "vulkan_helpers.hh"
 
 class context;
 class window
 {
 public:
-    struct params
+    struct parameters
     {
-        params() {}
+        parameters() {}
         const char* title = config::name;
         unsigned w = 640, h = 480;
         bool fullscreen = false;
         bool vsync = true;
     };
 
-    window(context& ctx, const params& p = params());
+    window(context& ctx, const parameters& p = parameters());
     
     window(window&& other);
     ~window();
 
 private:
+    void create_device();
+    void destroy_device();
+
+    void create_swapchain();
+    void destroy_swapchain();
+
+
     VkSurfaceKHR get_surface() const;
+
+    parameters params;
 
     context& ctx;
     SDL_Window* win;
     VkSurfaceKHR surface;
+    VkSurfaceCapabilitiesKHR surface_capabilities;
 
     VkDevice dev;
+    VkPhysicalDevice physical_device;
+    queue_families families;
     VkQueue graphics_queue, present_queue;
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR mode;
-    VkExtent2D size;
     
-    VkSwapchainKHR swap_chain;
+    VkSwapchainKHR swapchain;
 };
 
 #endif

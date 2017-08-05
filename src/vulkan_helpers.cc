@@ -407,7 +407,7 @@ queue_families find_queue_families(
     std::vector<VkQueueFamilyProperties> families(count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families.data());
 
-    queue_families found_families = {-1};
+    queue_families found_families = {-1, -1, -1};
 
     for(unsigned i = 0; i < families.size(); ++i)
     {
@@ -573,14 +573,9 @@ std::vector<VkPresentModeKHR> get_compatible_present_modes(
 }
 
 VkExtent2D find_swap_extent(
-    VkPhysicalDevice device,
-    VkSurfaceKHR surface,
+    const VkSurfaceCapabilitiesKHR& capabilities,
     VkExtent2D preferred
 ) {
-    VkSurfaceCapabilitiesKHR capabilities;
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &capabilities);
-
     if(capabilities.currentExtent.width != 0xFFFFFFFF)
     {
         return capabilities.currentExtent;

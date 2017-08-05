@@ -115,11 +115,10 @@ SDL_SYSWM_TYPE context::get_wm_type() const
 void context::allocate_device(
     VkSurfaceKHR surface,
     VkDevice& dev,
-    VkQueue& graphics_queue,
-    VkQueue& present_queue
+    VkPhysicalDevice& physical_device,
+    queue_families& families
 ) {
-    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-    queue_families families;
+    physical_device = VK_NULL_HANDLE;
     std::vector<VkSurfaceFormatKHR> formats;
     std::vector<VkPresentModeKHR> modes;
 
@@ -204,9 +203,6 @@ void context::allocate_device(
             + get_vulkan_result_string(err)
         );
     }
-
-    vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
-    vkGetDeviceQueue(dev, families.present_index, 0, &present_queue);
 }
 
 void context::free_device(

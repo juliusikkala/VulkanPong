@@ -126,8 +126,8 @@ VkSurfaceKHR create_window_surface(
     return surface;
 }
 
-window::window(context& ctx, const params& p)
-: ctx(ctx)
+window::window(context& ctx, const parameters& p)
+: params(p), ctx(ctx)
 {
     using namespace std::placeholders;
 
@@ -148,24 +148,30 @@ window::window(context& ctx, const params& p)
     // Create surface
     surface = create_window_surface(ctx.get_instance(), win);
 
-    // Create device
-    ctx.allocate_device(surface, dev, graphics_queue, present_queue);
+    create_device();
+    create_swapchain();
 }
     
 window::window(window&& other)
-: ctx(other.ctx), win(other.win), surface(other.surface), dev(other.dev),
-  graphics_queue(other.graphics_queue), present_queue(other.present_queue)
+: ctx(other.ctx), win(other.win), surface(other.surface),
+  surface_capabilities(other.surface_capabilities), dev(other.dev),
+  physical_device(other.physical_device), families(other.families),
+  graphics_queue(other.graphics_queue), present_queue(other.present_queue),
+  swapchain(other.swapchain)
 {
     other.win = nullptr;
     other.surface = VK_NULL_HANDLE;
     other.dev = VK_NULL_HANDLE;
+    other.physical_device = VK_NULL_HANDLE;
     other.graphics_queue = VK_NULL_HANDLE;
     other.present_queue = VK_NULL_HANDLE;
+    other.swapchain = VK_NULL_HANDLE;
 }
 
 window::~window()
 {
-    if(dev) ctx.free_device(surface, dev);
+    destroy_swapchain();
+    destroy_device();
     if(surface) vkDestroySurfaceKHR(ctx.get_instance(), surface, nullptr);
     if(win) SDL_DestroyWindow(win);
 }
@@ -173,4 +179,130 @@ window::~window()
 VkSurfaceKHR window::get_surface() const
 {
     return surface;
+}
+
+void window::create_device()
+{
+    ctx.allocate_device(
+        surface,
+        dev,
+        physical_device,
+        families
+    );
+
+    vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
+    vkGetDeviceQueue(dev, families.present_index, 0, &present_queue);
+}
+
+void window::destroy_device()
+{
+    if(dev)
+    {
+        ctx.free_device(surface, dev);
+        dev = VK_NULL_HANDLE;
+    }
+}
+
+void window::create_swapchain()
+{
+    std::vector<VkSurfaceFormatKHR> formats = find_surface_formats(
+        physical_device,
+        surface
+    );
+
+    if(formats.empty())
+        throw std::runtime_error("Failed to find compatible surface formats");
+
+    VkSurfaceFormatKHR format = formats[0];
+
+    VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
+
+    if(params.vsync)
+    {
+        std::vector<VkPresentModeKHR> available_modes =
+            get_compatible_present_modes(physical_device, surface);
+
+        for(VkPresentModeKHR available_mode: available_modes)
+        {
+            if(available_mode == VK_PRESENT_MODE_MAILBOX_KHR)
+            {
+                mode = available_mode;
+                break;
+            }
+            else if(available_mode == VK_PRESENT_MODE_FIFO_KHR)
+            {
+                mode = available_mode;
+            }
+        }
+    }
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+        physical_device,
+        surface,
+        &surface_capabilities
+    );
+
+    VkExtent2D extent = find_swap_extent(
+        surface_capabilities,
+        {params.w, params.h}
+    );
+    VkSwapchainCreateInfoKHR create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    create_info.surface = surface;
+    create_info.minImageCount = (params.vsync &&
+        surface_capabilities.minImageCount !=
+        surface_capabilities.maxImageCount)
+        ? surface_capabilities.minImageCount + 1
+        : surface_capabilities.minImageCount;
+    create_info.imageFormat = format.format;
+    create_info.imageColorSpace = format.colorSpace;
+    create_info.imageExtent = extent;
+    create_info.imageArrayLayers = 1;
+    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    unsigned family_indices[] = {
+        (unsigned)families.graphics_index,
+        (unsigned)families.present_index
+    };
+
+    if(families.graphics_index == families.present_index)
+    {
+        create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        create_info.queueFamilyIndexCount = 0;
+        create_info.pQueueFamilyIndices = nullptr;
+    }
+    else
+    {
+        create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        create_info.queueFamilyIndexCount = 2;
+        create_info.pQueueFamilyIndices = family_indices;
+    }
+
+    create_info.preTransform = surface_capabilities.currentTransform;
+    create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    create_info.presentMode = mode;
+    create_info.clipped = VK_TRUE;
+    create_info.oldSwapchain = VK_NULL_HANDLE;// FIXME
+
+    VkResult err;
+    if((err = vkCreateSwapchainKHR(
+            dev,
+            &create_info,
+            nullptr,
+            &swapchain
+        )) != VK_SUCCESS)
+    {
+        throw std::runtime_error(
+            "Failed to create a swap chain: " + get_vulkan_result_string(err)
+        );
+    }
+}
+
+void window::destroy_swapchain()
+{
+    if(swapchain)
+    {
+        vkDestroySwapchainKHR(dev, swapchain, nullptr);
+        swapchain = VK_NULL_HANDLE;
+    }
 }
