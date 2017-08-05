@@ -74,6 +74,7 @@ private:
     
     VkSwapchainKHR swapchain;
     std::vector<VkImage> swapchain_images;
+    std::vector<VkImageView> swapchain_image_views;
 };
 
 #endif
