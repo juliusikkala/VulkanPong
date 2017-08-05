@@ -26,6 +26,7 @@ SOFTWARE.
 #include "config.hh"
 #include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
+#include <vector>
 #include "vulkan_helpers.hh"
 
 class context;
@@ -62,6 +63,9 @@ private:
     SDL_Window* win;
     VkSurfaceKHR surface;
     VkSurfaceCapabilitiesKHR surface_capabilities;
+    VkSurfaceFormatKHR format;
+    VkPresentModeKHR present_mode;
+    VkExtent2D extent;
 
     VkDevice dev;
     VkPhysicalDevice physical_device;
@@ -69,6 +73,7 @@ private:
     VkQueue graphics_queue, present_queue;
     
     VkSwapchainKHR swapchain;
+    std::vector<VkImage> swapchain_images;
 };
 
 #endif

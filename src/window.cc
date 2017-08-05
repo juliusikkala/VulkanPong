@@ -153,11 +153,13 @@ window::window(context& ctx, const parameters& p)
 }
     
 window::window(window&& other)
-: ctx(other.ctx), win(other.win), surface(other.surface),
-  surface_capabilities(other.surface_capabilities), dev(other.dev),
+: params(other.params), ctx(other.ctx), win(other.win), surface(other.surface),
+  surface_capabilities(other.surface_capabilities), format(other.format),
+  present_mode(other.present_mode), extent(other.extent), dev(other.dev),
   physical_device(other.physical_device), families(other.families),
   graphics_queue(other.graphics_queue), present_queue(other.present_queue),
-  swapchain(other.swapchain)
+  swapchain(other.swapchain),
+  swapchain_images(std::move(other.swapchain_images))
 {
     other.win = nullptr;
     other.surface = VK_NULL_HANDLE;
@@ -192,6 +194,48 @@ void window::create_device()
 
     vkGetDeviceQueue(dev, families.graphics_index, 0, &graphics_queue);
     vkGetDeviceQueue(dev, families.present_index, 0, &present_queue);
+
+    std::vector<VkSurfaceFormatKHR> formats = find_surface_formats(
+        physical_device,
+        surface
+    );
+
+    if(formats.empty())
+        throw std::runtime_error("Failed to find compatible surface formats");
+
+    format = formats[0];
+
+    present_mode = VK_PRESENT_MODE_FIFO_KHR;
+
+    if(params.vsync)
+    {
+        std::vector<VkPresentModeKHR> available_modes =
+            get_compatible_present_modes(physical_device, surface);
+
+        for(VkPresentModeKHR available_mode: available_modes)
+        {
+            if(available_mode == VK_PRESENT_MODE_MAILBOX_KHR)
+            {
+                present_mode = available_mode;
+                break;
+            }
+            else if(available_mode == VK_PRESENT_MODE_FIFO_KHR)
+            {
+                present_mode = available_mode;
+            }
+        }
+    }
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+        physical_device,
+        surface,
+        &surface_capabilities
+    );
+
+    extent = find_swap_extent(
+        surface_capabilities,
+        {params.w, params.h}
+    );
 }
 
 void window::destroy_device()
@@ -205,47 +249,6 @@ void window::destroy_device()
 
 void window::create_swapchain()
 {
-    std::vector<VkSurfaceFormatKHR> formats = find_surface_formats(
-        physical_device,
-        surface
-    );
-
-    if(formats.empty())
-        throw std::runtime_error("Failed to find compatible surface formats");
-
-    VkSurfaceFormatKHR format = formats[0];
-
-    VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
-
-    if(params.vsync)
-    {
-        std::vector<VkPresentModeKHR> available_modes =
-            get_compatible_present_modes(physical_device, surface);
-
-        for(VkPresentModeKHR available_mode: available_modes)
-        {
-            if(available_mode == VK_PRESENT_MODE_MAILBOX_KHR)
-            {
-                mode = available_mode;
-                break;
-            }
-            else if(available_mode == VK_PRESENT_MODE_FIFO_KHR)
-            {
-                mode = available_mode;
-            }
-        }
-    }
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-        physical_device,
-        surface,
-        &surface_capabilities
-    );
-
-    VkExtent2D extent = find_swap_extent(
-        surface_capabilities,
-        {params.w, params.h}
-    );
     VkSwapchainCreateInfoKHR create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     create_info.surface = surface;
@@ -280,7 +283,7 @@ void window::create_swapchain()
 
     create_info.preTransform = surface_capabilities.currentTransform;
     create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    create_info.presentMode = mode;
+    create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
     create_info.oldSwapchain = VK_NULL_HANDLE;// FIXME
 
@@ -296,6 +299,16 @@ void window::create_swapchain()
             "Failed to create a swap chain: " + get_vulkan_result_string(err)
         );
     }
+
+    unsigned image_count;
+    vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr);
+    swapchain_images.resize(image_count);
+    vkGetSwapchainImagesKHR(
+        dev,
+        swapchain,
+        &image_count,
+        swapchain_images.data()
+    );
 }
 
 void window::destroy_swapchain()
