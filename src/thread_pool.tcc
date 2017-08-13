@@ -21,18 +21,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include <iostream>
-#include "context.hh"
-#include "window.hh"
 #include "thread_pool.hh"
 
-int main()
+template<typename F, typename... Args>
+void thread_pool::post(F&& f, Args&&... args)
 {
-    context ctx;
-    window win(ctx);
-    thread_pool pool;
-
-    std::cout<<"This will become a pong game some day..."<<std::endl;
-    pool.finish();
-    return 0;
+    post(0, std::forward<F>(f), std::forward<Args>(args)...);
 }
+
+template<typename F, typename... Args>
+void thread_pool::post(unsigned priority, F&& f, Args&&... args)
+{
+    post({std::bind(f, std::forward<Args>(args)...), priority, false});
+}
+
