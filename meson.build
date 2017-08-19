@@ -1,4 +1,5 @@
-project('VulkanPong', 'cpp')
+project('VulkanPong', 'cpp',
+        default_options : ['cpp_std=c++14'])
 
 # Config
 conf_data = configuration_data()

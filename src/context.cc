@@ -64,6 +64,7 @@ static int rate_device(VkPhysicalDevice device)
 }
 
 context::context()
+: resources(*this)
 {
     if(exists()) throw std::runtime_error("A context already exists.");
 

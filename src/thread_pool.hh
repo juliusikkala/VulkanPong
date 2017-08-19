@@ -30,6 +30,12 @@ SOFTWARE.
 #include <condition_variable>
 #include <mutex>
 #include <atomic>
+#include <limits>
+
+constexpr unsigned PRIORITY_LOW = 0;
+constexpr unsigned PRIORITY_MEDIUM = 100;
+constexpr unsigned PRIORITY_HIGH = 1000;
+constexpr unsigned PRIORITY_PRONTO = std::numeric_limits<unsigned>::max();
 
 class thread_pool
 {
@@ -38,6 +44,7 @@ public:
     thread_pool();
     // 0 threads will cause any given task be run immediately when queuing.
     thread_pool(unsigned thread_count);
+    thread_pool(const thread_pool& other) = delete;
     ~thread_pool();
 
     // If resizing down, may be slow if all threads are being used (removed ones

@@ -9,6 +9,7 @@ src = [
   'context.cc',
   'window.cc',
   'thread_pool.cc',
+  'resource_manager.cc',
   'vulkan_helpers.cc'
 ]
 

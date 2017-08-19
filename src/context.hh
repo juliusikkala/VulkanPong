@@ -29,6 +29,8 @@ SOFTWARE.
 #include <cstdint>
 #include <vector>
 #include "vulkan_helpers.hh"
+#include "thread_pool.hh"
+#include "resource_manager.hh"
 
 class context
 {
@@ -40,6 +42,9 @@ public:
     context(context&& other) = delete;
     context(const context& other) = delete;
     ~context();
+
+    thread_pool threads;
+    resource_manager resources;
 
 private:
     friend class window;
