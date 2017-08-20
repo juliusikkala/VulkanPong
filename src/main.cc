@@ -25,14 +25,58 @@ SOFTWARE.
 #include "context.hh"
 #include "window.hh"
 #include "thread_pool.hh"
+#include "resource.hh"
+
+struct test_data: public resource_data
+{
+    test_data(unsigned hs): heavy_stuff(hs) {}
+    unsigned heavy_stuff;
+
+    void load_system() override
+    {
+        std::cout<<"load system"<<std::endl;
+    }
+
+    void unload_system() override
+    {
+        std::cout<<"unload system"<<std::endl;
+    }
+
+    void load_device() override
+    {
+        std::cout<<"load device"<<std::endl;
+    }
+
+    void unload_device() override
+    {
+        std::cout<<"unload device"<<std::endl;
+    }
+};
+
+class test: public resource<test_data>
+{
+public:
+    test(context& ctx, const std::string& name)
+    : resource(ctx, name)
+    {}
+
+    void show()
+    {
+        std::cout << system().heavy_stuff << std::endl;
+    }
+};
 
 int main()
 {
     context ctx;
     window win(ctx);
-    thread_pool pool;
+    ctx.resources.create<test>("test", 1);
+
+    test t1(ctx, "test");
+    test t2(ctx, "test");
+    t1.show();
+    t2.show();
 
     std::cout<<"This will become a pong game some day..."<<std::endl;
-    pool.finish();
     return 0;
 }

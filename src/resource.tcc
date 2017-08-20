@@ -28,7 +28,13 @@ template<typename T>
 resource<T>::resource(
     context& ctx,
     const std::string& resource_name
-): data_container(ctx.resources.get<T>(resource_name))
+): resource(ctx.resources, resource_name) { }
+
+template<typename T>
+resource<T>::resource(
+    resource_manager& manager,
+    const std::string& resource_name
+): data_container(manager.get<T>(resource_name))
 {
     data_container.pin();
 }

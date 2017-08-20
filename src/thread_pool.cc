@@ -111,12 +111,12 @@ void thread_pool::post(thread_pool::task&& t)
 {
     if(threads.size() == 0)
     {
-        t.task();
+        t.task_func();
     }
     else
     {
         tasks_mutex.lock();
-        tasks.push(std::forward<task>(t));
+        tasks.push(std::move(t));
         tasks_mutex.unlock();
         new_task.notify_one();
     }
@@ -137,7 +137,7 @@ void thread_pool::execute_loop()
             new_task.wait(lk);
         }
         busy_threads++;
-        std::function<void()> task(tasks.top().task);
+        std::function<void()> task(tasks.top().task_func);
         finished = tasks.top().finish_thread;
         tasks.pop();
         lk.unlock();

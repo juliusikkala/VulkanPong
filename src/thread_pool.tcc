@@ -22,16 +22,52 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #include "thread_pool.hh"
+#include <utility>
+#include <typeinfo>
+#include <iostream>
 
 template<typename F, typename... Args>
-void thread_pool::post(F&& f, Args&&... args)
+auto thread_pool::post(F&& f, Args&&... args)
+-> std::future<decltype(f(std::forward<Args>(args)...))>
 {
-    post(0, std::forward<F>(f), std::forward<Args>(args)...);
+    return postp(0, std::forward<F>(f), std::forward<Args>(args)...);
+}
+
+template<typename F, typename R, typename... Args>
+void set(std::promise<R>& p, F&& f, Args&&... args)
+{
+    p.set_value(f(std::forward<Args>(args)...));
 }
 
 template<typename F, typename... Args>
-void thread_pool::post(unsigned priority, F&& f, Args&&... args)
+void set(std::promise<void>& p, F&& f, Args&&... args)
 {
-    post({std::bind(f, std::forward<Args>(args)...), priority, false});
+    f(std::forward<Args>(args)...);
+    p.set_value();
+}
+
+template<typename F, typename... Args>
+auto thread_pool::postp(
+    unsigned priority,
+    F&& f,
+    Args&&... args
+) -> std::future<decltype(f(std::forward<Args>(args)...))>
+{
+    auto p = std::make_shared<
+        std::promise<decltype(f(std::forward<Args>(args)...))>
+    >();
+
+    std::future<decltype(f(std::forward<Args>(args)...))> future =
+        p->get_future();
+
+    post({
+        [p, f, args...]() mutable {
+            set(*p, f, std::forward<Args>(args)...);
+        },
+        priority,
+        false
+    });
+
+    return future;
 }
 

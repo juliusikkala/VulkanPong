@@ -31,8 +31,14 @@ template<typename T>
 class resource
 {
 public:
+    using resource_data_type = T;
+
     resource(
         context& ctx,
+        const std::string& resource_name
+    );
+    resource(
+        resource_manager& manager,
         const std::string& resource_name
     );
     resource(const resource<T>& other);

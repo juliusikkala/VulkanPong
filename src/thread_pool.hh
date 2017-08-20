@@ -31,6 +31,8 @@ SOFTWARE.
 #include <mutex>
 #include <atomic>
 #include <limits>
+#include <memory>
+#include <future>
 
 constexpr unsigned PRIORITY_LOW = 0;
 constexpr unsigned PRIORITY_MEDIUM = 100;
@@ -56,19 +58,23 @@ public:
     unsigned busy() const;
 
     template<typename F, typename... Args>
-    void post(F&& f, Args&&... args);
+    auto post(F&& f, Args&&... args)
+    -> std::future<decltype(f(std::forward<Args>(args)...))>;
 
     template<typename F, typename... Args>
-    void post(unsigned priority, F&& f, Args&&... args);
+    auto postp(
+        unsigned priority,
+        F&& f,
+        Args&&... args
+    ) -> std::future<decltype(f(std::forward<Args>(args)...))>;
 
     // Block until queue is empty
     void finish();
 
 private:
-
     struct task
     {
-        std::function<void()> task;
+        std::function<void()> task_func;
         unsigned priority;
         bool finish_thread;
 

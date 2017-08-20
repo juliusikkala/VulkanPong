@@ -28,9 +28,11 @@ template<typename T, typename... Args>
 void resource_manager::create(const std::string& name, Args&&... args)
 {
     std::unique_lock<std::shared_timed_mutex> lk(resources_mutex);
-    resources[name] = new resource_container<typename T::data>(
-        ctx,
-        std::forward<Args>(args)...
+    resources[name].reset(
+        new resource_container<typename T::resource_data_type>(
+            *this,
+            std::forward<Args>(args)...
+        )
     );
 }
 
@@ -40,7 +42,7 @@ resource_manager::resource_container<T>& resource_manager::get(
 ){
     std::shared_lock<std::shared_timed_mutex> lk(resources_mutex);
 
-    basic_resource_container* container = resources.at(name);
+    basic_resource_container* container = resources.at(name).get();
     resource_container<T>* tcontainer = dynamic_cast<resource_container<T>*>(
         container
     );
@@ -55,21 +57,18 @@ resource_manager::resource_container<T>& resource_manager::get(
 template<typename T>
 template<typename... Args>
 resource_manager::resource_container<T>::resource_container(
-    context& ctx, 
+    resource_manager& manager,
     Args&&... args
-): basic_resource_container(ctx), data(std::forward<Args>(args)...) {}
+): basic_resource_container(manager), data(std::forward<Args>(args)...) {}
 
 template<typename T>
-resource_manager::resource_container<T>::~resource_container() {
-    std::unique_lock<std::mutex> lk(load_mutex);
-    if(status == UNLOADED)
-    {
-        status = SYSTEM_LOADED;
-        unload_device();
+resource_manager::resource_container<T>::~resource_container()
+{
+    if(load_future.valid())
+        load_future.wait();
 
-        status = UNLOADED;
-        unload_system();
-    }
+    if(unload_future.valid())
+        unload_future.wait();
 }
 
 template<typename T>
@@ -94,7 +93,7 @@ void resource_manager::resource_container<T>::wait_load_device() const
 
     std::unique_lock<std::mutex> lk(load_mutex);
 
-    system_loaded.wait(
+    device_loaded.wait(
         lk,
         [&]{return status == DEVICE_LOADED;}
     );
@@ -104,36 +103,36 @@ template<typename T>
 const T& resource_manager::resource_container<T>::system() const
 {
     wait_load_system();
-    return *data;
+    return data;
 }
 
 template<typename T>
 const T& resource_manager::resource_container<T>::device() const
 {
     wait_load_device();
-    return *data;
+    return data;
 }
 
 template<typename T>
 void resource_manager::resource_container<T>::load_system() const
 {
-    data.load_system(ctx);
+    data.load_system();
 }
 
 template<typename T>
 void resource_manager::resource_container<T>::unload_system() const
 {
-    data.unload_system(ctx);
+    data.unload_system();
 }
 
 template<typename T>
 void resource_manager::resource_container<T>::load_device() const
 {
-    data.unload_device(ctx);
+    data.load_device();
 }
 
 template<typename T>
 void resource_manager::resource_container<T>::unload_device() const
 {
-    data.unload_device(ctx);
+    data.unload_device();
 }

@@ -24,8 +24,7 @@ SOFTWARE.
 #include "resource_manager.hh"
 #include "context.hh"
 
-resource_manager::resource_manager(context& ctx)
-: ctx(ctx) { }
+resource_manager::resource_manager(thread_pool& pool): pool(pool) { }
 
 resource_manager::~resource_manager() { }
 
@@ -42,8 +41,9 @@ void resource_manager::unpin(const std::string& name)
 }
 
 resource_manager::basic_resource_container::basic_resource_container(
-    context& ctx
-): status(UNLOADED), references(0), ctx(ctx) { }
+    resource_manager& manager
+): status(UNLOADED), references(0), manager(manager) {
+}
 
 resource_manager::basic_resource_container::~basic_resource_container()
 {
@@ -53,7 +53,7 @@ void resource_manager::basic_resource_container::pin() const
 {
     if(++references == 1)
     {
-        start_load();                
+        start_load();
     }
 }
 
@@ -61,26 +61,28 @@ void resource_manager::basic_resource_container::unpin() const
 {
     if(--references == 0)
     {
-        start_unload();                
+        start_unload();
     }
 }
 
 void resource_manager::basic_resource_container::start_load() const
 {
-    ctx.threads.post(
+    load_future = manager.pool.postp(
         PRIORITY_PRONTO,
-        [&]{
+        [&](){
             std::unique_lock<std::mutex> lk(load_mutex);
             if(status == UNLOADED)
             {
                 load_system();
                 status = SYSTEM_LOADED;
+                system_loaded.notify_all();
             }
 
             if(status == SYSTEM_LOADED)
             {
                 load_device();
                 status = DEVICE_LOADED;
+                device_loaded.notify_all();
             }
         }
     );
@@ -88,7 +90,7 @@ void resource_manager::basic_resource_container::start_load() const
 
 void resource_manager::basic_resource_container::start_unload() const
 {
-    ctx.threads.post(
+    unload_future = manager.pool.postp(
         PRIORITY_PRONTO,
         [&]{
             std::unique_lock<std::mutex> lk(load_mutex);
@@ -106,3 +108,10 @@ void resource_manager::basic_resource_container::start_unload() const
         }
     );
 }
+
+resource_data::~resource_data() {}
+void resource_data::load_system() {}
+void resource_data::unload_system() {}
+
+void resource_data::load_device() {}
+void resource_data::unload_device() {}
