@@ -30,6 +30,7 @@ thread_pool::thread_pool()
 : thread_pool(std::max(std::thread::hardware_concurrency()-1, 0u)) { }
 
 thread_pool::thread_pool(unsigned thread_count)
+: busy_threads(0)
 {
     resize(thread_count);
 }
@@ -38,7 +39,11 @@ thread_pool::~thread_pool()
 {
     for(size_t i = 0; i < threads.size(); ++i)
     {
-        post({nullptr, std::numeric_limits<unsigned>::max(), true});
+        post(task(
+            std::packaged_task<void()>(), // No task for you,
+            std::numeric_limits<unsigned>::max(), // just do it,
+            true // Quit.
+        )); // We don't need you anymore.
     }
     for(std::thread& thread: threads)
     {
@@ -57,12 +62,12 @@ void thread_pool::resize(unsigned thread_count)
         std::mutex finished_mutex;
         std::unique_lock<std::mutex> finished_lock(finished_mutex);
         std::condition_variable finished;
-        std::vector<std::thread::id> finished_thread_ids;
 
-        for(unsigned i = 0; i < threads_to_exit; ++i)
+        unsigned tmp_threads_to_exit = threads_to_exit;
+        for(unsigned i = 0; i < tmp_threads_to_exit; ++i)
         {
-            std::thread::id& id = finished_thread_ids[i];
-            post({
+            std::thread::id& id = exited_thread_ids[i];
+            post(task(
                 [&id, &threads_to_exit, &finished]()
                 {
                     id = std::this_thread::get_id();
@@ -73,10 +78,13 @@ void thread_pool::resize(unsigned thread_count)
                 },
                 std::numeric_limits<unsigned>::max(),
                 true
-            });
+            ));
         }
 
-        finished.wait(finished_lock);
+        finished.wait(
+            finished_lock,
+            [&threads_to_exit]{return threads_to_exit == 0;}
+        );
 
         for(unsigned i = 0; i < threads.size(); ++i)
         {
@@ -105,6 +113,11 @@ void thread_pool::resize(unsigned thread_count)
 unsigned thread_pool::size() const
 {
     return threads.size();
+}
+
+unsigned thread_pool::busy() const
+{
+    return busy_threads;
 }
 
 void thread_pool::post(thread_pool::task&& t)
@@ -137,14 +150,15 @@ void thread_pool::execute_loop()
             new_task.wait(lk);
         }
         busy_threads++;
-        std::function<void()> task(tasks.top().task_func);
-        finished = tasks.top().finish_thread;
+        task todo(std::move(const_cast<task&>(tasks.top())));
         tasks.pop();
         lk.unlock();
 
+        finished = todo.finish_thread;
+
         try
         {
-            if(task) task();
+            if(todo.task_func.valid()) todo.task_func();
         }
         catch(std::exception& ex)
         {
@@ -157,7 +171,11 @@ void thread_pool::execute_loop()
 void thread_pool::finish()
 {
     std::unique_lock<std::mutex> lk(tasks_mutex);
-    no_tasks_running.wait(lk);
+    if(busy_threads == 0 && tasks.empty()) return;
+    no_tasks_running.wait(
+        lk,
+        [this]{return busy_threads == 0 && tasks.empty();}
+    );
 }
 
 bool thread_pool::task::operator<(const thread_pool::task& other) const

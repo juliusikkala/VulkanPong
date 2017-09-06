@@ -53,21 +53,20 @@ auto thread_pool::postp(
     Args&&... args
 ) -> std::future<decltype(f(std::forward<Args>(args)...))>
 {
-    auto p = std::make_shared<
-        std::promise<decltype(f(std::forward<Args>(args)...))>
-    >();
+    std::packaged_task<decltype(f(std::forward<Args>(args)...))()> task_func(
+        std::bind(f, std::forward<Args>(args)...)
+    );
 
     std::future<decltype(f(std::forward<Args>(args)...))> future =
-        p->get_future();
+        task_func.get_future();
 
-    post({
-        [p, f, args...]() mutable {
-            set(*p, f, std::forward<Args>(args)...);
-        },
-        priority,
-        false
-    });
+    post(task(std::move(task_func), priority, false));
 
     return future;
 }
 
+template<typename F>
+thread_pool::task::task(F&& func, unsigned priority, bool finish_thread)
+: task_func(std::forward<F>(func)), priority(priority),
+  finish_thread(finish_thread)
+{}

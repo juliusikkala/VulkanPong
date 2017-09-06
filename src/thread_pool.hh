@@ -74,7 +74,10 @@ public:
 private:
     struct task
     {
-        std::function<void()> task_func;
+        template<typename F>
+        task(F&& func, unsigned priority, bool finish_thread);
+
+        std::packaged_task<void()> task_func;
         unsigned priority;
         bool finish_thread;
 
