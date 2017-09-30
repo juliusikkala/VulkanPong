@@ -120,19 +120,36 @@ unsigned thread_pool::busy() const
     return busy_threads;
 }
 
-void thread_pool::post(thread_pool::task&& t)
-{
-    if(threads.size() == 0)
+thread_pool::task_id thread_pool::post(
+    thread_pool::task&& t,
+    const std::set<task_id>& dependencies
+){
+    t.id = id_counter++;
+    all_tasks.insert(t.id);
+    if(dependencies.empty())
     {
-        t.task_func();
+        queue_task(std::move(t));
+        return t.id;
+    }
+
+    std::lock_guard<std::mutex> lock(pending_tasks);
+    std::set<task_id> common;
+    std::set_intersection(
+        all_tasks.begin(),
+        all_tasks.end(),
+        dependencies.begin(),
+        depencencies.end(),
+        std::back_inserter(common)
+    );
+    if(common.empty())
+    {
+        queue_task(std::move(t));
     }
     else
     {
-        tasks_mutex.lock();
-        tasks.push(std::move(t));
-        tasks_mutex.unlock();
-        new_task.notify_one();
+        pending_tasks.emplace_back(std::move(t));
     }
+    return t.id;
 }
 
 void thread_pool::execute_loop()
@@ -159,13 +176,71 @@ void thread_pool::execute_loop()
         try
         {
             if(todo.task_func.valid()) todo.task_func();
+
+            std::lock_guard<std::mutex> lock(pending_tasks);
+            on_finish_task(todo.id);
         }
         catch(std::exception& ex)
         {
             std::cerr << ex.what() << std::endl;
+
+            std::lock_guard<std::mutex> lock(pending_tasks);
+            on_fail_task(todo.id);
         }
         --busy_threads;
     }
+}
+
+void thread_pool::queue_task(thread_pool::task&& t)
+{
+    if(threads.size() == 0)
+    {
+        t.task_func();
+    }
+    else
+    {
+        tasks_mutex.lock();
+        tasks.push(std::move(t));
+        tasks_mutex.unlock();
+        new_task.notify_one();
+    }
+}
+
+void thread_pool::on_finish_task(task_id id)
+{
+    all_tasks.erase(id);
+    for(size_t i = 0; i < pending_tasks.size(); ++i)
+    {
+        task& t = pending_tasks[i];
+        t.dependencies.erase(id);
+        if(t.dependencies.empty())
+        {
+            queue_task(std::move(t));
+            pending_tasks.erase(pending_tasks.begin()+i);
+            --i;
+        }
+    }
+}
+
+bool thread_pool::on_fail_task(task_id id)
+{
+    all_tasks.erase(id);
+    bool had_children = false;
+    for(size_t i = 0; i < pending_tasks.size(); ++i)
+    {
+        task& t = pending_tasks[i];
+        if(t.dependencies.count(id))
+        {
+            had_children = true;
+            task_id child_id = t.id;
+            pending_tasks.erase(pending_tasks.begin()+i);
+            if(on_fail_task(child_id))
+            {
+                i = 0;
+            }
+        }
+    }
+    return had_children;
 }
 
 void thread_pool::finish()

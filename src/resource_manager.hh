@@ -35,72 +35,15 @@ SOFTWARE.
 
 class shader;
 class thread_pool;
+class basic_resource_container;
+
+//Make sure this is an integral type (pointers are fine)
+using device_id = void*;
 
 class resource_manager
 {
 template<typename T>
 friend class resource;
-private:
-    class basic_resource_container
-    {
-    public:
-        basic_resource_container(resource_manager& manager);
-        basic_resource_container(const basic_resource_container& other) = delete;
-        virtual ~basic_resource_container();
-
-        void pin() const;
-        void unpin() const;
-
-    protected:
-        void start_load() const;
-        void start_unload() const;
-
-        virtual void load_system() const = 0;
-        virtual void unload_system() const = 0;
-
-        virtual void load_device() const = 0;
-        virtual void unload_device() const = 0;
-
-        mutable std::mutex load_mutex;
-        mutable std::condition_variable system_loaded, device_loaded;
-        enum load_status
-        {
-            UNLOADED,
-            SYSTEM_LOADED,
-            DEVICE_LOADED
-        };
-        mutable std::atomic<load_status> status;
-        mutable std::atomic_uint references;
-        mutable std::future<void> load_future, unload_future;
-        resource_manager& manager;
-    };
-
-    template<typename T>
-    class resource_container: public basic_resource_container
-    {
-    public:
-        template<typename... Args>
-        resource_container(resource_manager& manager, Args&&... args);
-        resource_container(const resource_container<T>& other) = delete;
-        ~resource_container();
-
-        void wait_load_system() const;
-        void wait_load_device() const;
-
-        const T& system() const;
-        const T& device() const;
-
-    protected:
-        void load_system() const override final;
-        void unload_system() const override final;
-
-        void load_device() const override final;
-        void unload_device() const override final;
-
-    private:
-        mutable T data;
-    };
-
 public:
     resource_manager(thread_pool& pool);
     resource_manager(const resource_manager& other) = delete;

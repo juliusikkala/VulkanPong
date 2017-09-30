@@ -21,62 +21,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#ifndef PONG_WINDOW_HH
-#define PONG_WINDOW_HH
+#ifndef PONG_PIPELINE_HH
+#define PONG_PIPELINE_HH
 #include "config.hh"
-#include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
-#include <vector>
-#include "vulkan_helpers.hh"
 
-class context;
-class window
+class window;
+class pipeline
 {
 public:
-    struct parameters
-    {
-        parameters() {}
-        const char* title = config::name;
-        unsigned w = 640, h = 480;
-        bool fullscreen = false;
-        bool vsync = true;
-    };
-
-    window(context& ctx, const parameters& p = parameters());
-    
-    window(window&& other);
-    ~window();
-
 private:
-    friend class pipeline;
-
-    void create_device();
-    void destroy_device();
-
-    void create_swapchain();
-    void destroy_swapchain();
-
-
-    VkSurfaceKHR get_surface() const;
-
-    parameters params;
-
-    context& ctx;
-    SDL_Window* win;
-    VkSurfaceKHR surface;
-    VkSurfaceCapabilitiesKHR surface_capabilities;
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR present_mode;
-    VkExtent2D extent;
-
-    VkDevice dev;
-    VkPhysicalDevice physical_device;
-    queue_families families;
-    VkQueue graphics_queue, present_queue;
-    
-    VkSwapchainKHR swapchain;
-    std::vector<VkImage> swapchain_images;
-    std::vector<VkImageView> swapchain_image_views;
 };
-
 #endif

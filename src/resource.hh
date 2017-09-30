@@ -25,13 +25,73 @@ SOFTWARE.
 #define PONG_RESOURCE_HH
 #include <string>
 #include "resource_manager.hh"
+#include "thread_pool.hh"
+
+class basic_resource_container
+{
+public:
+    basic_resource_container(resource_manager& manager);
+    basic_resource_container(const basic_resource_container& other) = delete;
+    virtual ~basic_resource_container();
+
+    void pin() const;
+    void unpin() const;
+
+    void pin(device_id id) const;
+    void unpin(device_id id) const;
+
+protected:
+    void start_load() const;
+    void start_unload() const;
+
+    virtual void load_system() const = 0;
+    virtual void unload_system() const = 0;
+
+    virtual void load_device(device_id) const = 0;
+    virtual void unload_device(device_id) const = 0;
+
+    mutable std::mutex load_mutex;
+    mutable std::condition_variable system_loaded, device_loaded;
+    mutable std::atomic_uint references;
+    mutable thread_pool::post_result load_result, unload_result;
+    resource_manager& manager;
+};
+
+template<typename S, typename D>
+class resource_container: public basic_resource_container
+{
+public:
+    template<typename... Args>
+    resource_container(resource_manager& manager, Args&&... args);
+    resource_container(const resource_container<T>& other) = delete;
+    ~resource_container();
+
+    void wait_load_system() const;
+    void wait_load_device(device_id id) const;
+
+    const T& system() const;
+    const D& device(device_id id) const;
+
+protected:
+    void load_system() const override final;
+    void unload_system() const override final;
+
+    void load_device(device_id id) const override final;
+    void unload_device(device_id id) const override final;
+
+private:
+    mutable S system_data;
+    mutable std::unordered_map<device_id, D> device_data;
+};
+
 
 class context;
-template<typename T>
+template<typename S, typename D>
 class resource
 {
 public:
-    using resource_data_type = T;
+    using system_data = S;
+    using device_data = D;
 
     resource(
         context& ctx,
@@ -45,16 +105,16 @@ public:
     ~resource();
 
     void wait_load_system() const;
-    void wait_load_device() const;
+    void wait_load_device(device_id id) const;
 
 protected:
     // Use this to access system data only
-    const T& system() const;
+    const S& system() const;
     // Use this to access device and system data
-    const T& device() const;
+    const D& device(device_id id) const;
 
 private:
-    resource_manager::resource_container<T>& data_container;
+    resource_manager::resource_container<S, D>& data_container;
 };
 
 #include "resource.tcc"

@@ -28,7 +28,7 @@ SOFTWARE.
 
 template<typename F, typename... Args>
 auto thread_pool::post(F&& f, Args&&... args)
--> std::future<decltype(f(std::forward<Args>(args)...))>
+-> post_result<decltype(f(std::forward<Args>(args)...))>
 {
     return postp(0, std::forward<F>(f), std::forward<Args>(args)...);
 }
@@ -51,18 +51,29 @@ auto thread_pool::postp(
     unsigned priority,
     F&& f,
     Args&&... args
-) -> std::future<decltype(f(std::forward<Args>(args)...))>
+) -> post_result<decltype(f(std::forward<Args>(args)...))>
+{
+    return postd({}, priority, f, std::forward<Args>(args)...);
+}
+
+template<typename F, typename... Args>
+auto thread_pool::postd(
+    const std::unordered_set<task_id>& dependencies,
+    unsigned priority,
+    F&& f,
+    Args&&... args
+) -> post_result<decltype(f(std::forward<Args>(args)...))>
 {
     std::packaged_task<decltype(f(std::forward<Args>(args)...))()> task_func(
         std::bind(f, std::forward<Args>(args)...)
     );
 
-    std::future<decltype(f(std::forward<Args>(args)...))> future =
+    post_result<decltype(f(std::forward<Args>(args)...))> res =
         task_func.get_future();
 
-    post(task(std::move(task_func), priority, false));
+    res.id = post(task(std::move(task_func), priority, false), dependencies);
 
-    return future;
+    return res;
 }
 
 template<typename F>

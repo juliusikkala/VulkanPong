@@ -26,9 +26,9 @@ SOFTWARE.
 #include <thread>
 #include <mutex>
 #include <functional>
+#include <unordered_set>
 #include <queue>
 #include <condition_variable>
-#include <mutex>
 #include <atomic>
 #include <limits>
 #include <memory>
@@ -42,6 +42,8 @@ constexpr unsigned PRIORITY_PRONTO = std::numeric_limits<unsigned>::max();
 class thread_pool
 {
 public:
+    using task_id = unsigned;
+
     // Launches as many threads as there are cores on the machine, -1
     thread_pool();
     // 0 threads will cause any given task be run immediately when queuing.
@@ -57,16 +59,30 @@ public:
     unsigned size() const;
     unsigned busy() const;
 
+    template<typename T = void>
+    struct post_result: public std::future<T>
+    {
+        task_id id;
+    };
+
     template<typename F, typename... Args>
     auto post(F&& f, Args&&... args)
-    -> std::future<decltype(f(std::forward<Args>(args)...))>;
+    -> post_result<decltype(f(std::forward<Args>(args)...))>;
 
     template<typename F, typename... Args>
     auto postp(
         unsigned priority,
         F&& f,
         Args&&... args
-    ) -> std::future<decltype(f(std::forward<Args>(args)...))>;
+    ) -> post_result<decltype(f(std::forward<Args>(args)...))>;
+
+    template<typename F, typename... Args>
+    auto postd(
+        const std::unordered_set<task_id>& dependencies,
+        unsigned priority,
+        F&& f,
+        Args&&... args
+    ) -> post_result<decltype(f(std::forward<Args>(args)...))>;
 
     // Block until queue is empty
     void finish();
@@ -78,22 +94,38 @@ private:
         task(F&& func, unsigned priority, bool finish_thread);
 
         std::packaged_task<void()> task_func;
+
+        std::unordered_set<task_id> dependencies;
+        task_id id;
+
         unsigned priority;
         bool finish_thread;
 
         bool operator<(const thread_pool::task& other) const;
     };
 
-    void post(thread_pool::task&& t);
+    task_id post(
+        thread_pool::task&& t,
+        const std::set<task_id>& dependencies
+    );
 
     void execute_loop();
 
-    std::priority_queue<task> tasks;
-    std::mutex tasks_mutex;
+    void queue_task(thread_pool::task&& t);
+    void on_finish_task(task_id id);
+    bool on_fail_task(task_id id);
+
+    // Tasks with unsatisfied dependencies
+    std::vector<task> pending_tasks;
+    std::priority_queue<task> tasks_queue;
+    // Ids of every task currently pending, in queue or running
+    std::unordered_set<task_id> all_tasks;
+
+    std::mutex pending_tasks_mutex, tasks_mutex;
     std::condition_variable new_task, no_tasks_running;
 
     std::vector<std::thread> threads;
-    std::atomic_uint busy_threads;
+    std::atomic_uint busy_threads, id_counter;
 };
 
 #include "thread_pool.tcc"
