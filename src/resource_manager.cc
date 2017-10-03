@@ -23,6 +23,7 @@ SOFTWARE.
 */
 #include "resource_manager.hh"
 #include "context.hh"
+#include "resource.hh"
 
 resource_manager::resource_manager(thread_pool& pool): pool(pool) { }
 
@@ -39,79 +40,3 @@ void resource_manager::unpin(const std::string& name)
     std::shared_lock<std::shared_timed_mutex> lk(resources_mutex);
     resources.at(name)->unpin();
 }
-
-resource_manager::basic_resource_container::basic_resource_container(
-    resource_manager& manager
-): status(UNLOADED), references(0), manager(manager) {
-}
-
-resource_manager::basic_resource_container::~basic_resource_container()
-{
-}
-
-void resource_manager::basic_resource_container::pin() const
-{
-    if(++references == 1)
-    {
-        start_load();
-    }
-}
-
-void resource_manager::basic_resource_container::unpin() const
-{
-    if(--references == 0)
-    {
-        start_unload();
-    }
-}
-
-void resource_manager::basic_resource_container::start_load() const
-{
-    load_future = manager.pool.postp(
-        PRIORITY_PRONTO,
-        [&](){
-            std::unique_lock<std::mutex> lk(load_mutex);
-            if(status == UNLOADED)
-            {
-                load_system();
-                status = SYSTEM_LOADED;
-                system_loaded.notify_all();
-            }
-
-            if(status == SYSTEM_LOADED)
-            {
-                load_device();
-                status = DEVICE_LOADED;
-                device_loaded.notify_all();
-            }
-        }
-    );
-}
-
-void resource_manager::basic_resource_container::start_unload() const
-{
-    unload_future = manager.pool.postp(
-        PRIORITY_PRONTO,
-        [&]{
-            std::unique_lock<std::mutex> lk(load_mutex);
-            if(status == DEVICE_LOADED)
-            {
-                status = SYSTEM_LOADED;
-                unload_device();
-            }
-
-            if(status == SYSTEM_LOADED)
-            {
-                status = UNLOADED;
-                unload_system();
-            }
-        }
-    );
-}
-
-resource_data::~resource_data() {}
-void resource_data::load_system() {}
-void resource_data::unload_system() {}
-
-void resource_data::load_device() {}
-void resource_data::unload_device() {}

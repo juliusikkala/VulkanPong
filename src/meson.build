@@ -10,7 +10,7 @@ src = [
   'window.cc',
   'thread_pool.cc',
   'resource_manager.cc',
-  'resource.cc',
+  'resource_container.cc',
   'vulkan_helpers.cc'
 ]
 

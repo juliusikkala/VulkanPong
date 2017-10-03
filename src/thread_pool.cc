@@ -24,13 +24,13 @@ SOFTWARE.
 #include "thread_pool.hh"
 #include <cstdlib>
 #include <iostream>
-#include "helpers.hh"
+#include <algorithm>
 
 thread_pool::thread_pool()
 : thread_pool(std::max(std::thread::hardware_concurrency()-1, 0u)) { }
 
 thread_pool::thread_pool(unsigned thread_count)
-: busy_threads(0)
+: busy_threads(0), id_counter(1) /*0 is reserved*/
 {
     resize(thread_count);
 }
@@ -41,8 +41,8 @@ thread_pool::~thread_pool()
     {
         post(task(
             std::packaged_task<void()>(), // No task for you,
-            std::numeric_limits<unsigned>::max(), // just do it,
-            true // Quit.
+            std::numeric_limits<unsigned>::max(), // just do it now,
+            true // quit.
         )); // We don't need you anymore.
     }
     for(std::thread& thread: threads)
@@ -132,16 +132,15 @@ thread_pool::task_id thread_pool::post(
         return t.id;
     }
 
-    std::lock_guard<std::mutex> lock(pending_tasks);
-    std::set<task_id> common;
+    std::lock_guard<std::mutex> lock(pending_tasks_mutex);
     std::set_intersection(
         all_tasks.begin(),
         all_tasks.end(),
         dependencies.begin(),
-        depencencies.end(),
-        std::back_inserter(common)
+        dependencies.end(),
+        std::inserter(t.dependencies, t.dependencies.end())
     );
-    if(common.empty())
+    if(t.dependencies.empty())
     {
         queue_task(std::move(t));
     }
@@ -158,17 +157,17 @@ void thread_pool::execute_loop()
     while(!finished)
     {
         std::unique_lock<std::mutex> lk(tasks_mutex);
-        if(busy_threads == 0 && tasks.empty())
+        if(busy_threads == 0 && tasks_queue.empty())
         {
             no_tasks_running.notify_all();
         }
-        while(tasks.empty())
+        while(tasks_queue.empty())
         {
             new_task.wait(lk);
         }
         busy_threads++;
-        task todo(std::move(const_cast<task&>(tasks.top())));
-        tasks.pop();
+        task todo(std::move(const_cast<task&>(tasks_queue.top())));
+        tasks_queue.pop();
         lk.unlock();
 
         finished = todo.finish_thread;
@@ -177,14 +176,14 @@ void thread_pool::execute_loop()
         {
             if(todo.task_func.valid()) todo.task_func();
 
-            std::lock_guard<std::mutex> lock(pending_tasks);
+            std::lock_guard<std::mutex> lock(pending_tasks_mutex);
             on_finish_task(todo.id);
         }
         catch(std::exception& ex)
         {
             std::cerr << ex.what() << std::endl;
 
-            std::lock_guard<std::mutex> lock(pending_tasks);
+            std::lock_guard<std::mutex> lock(pending_tasks_mutex);
             on_fail_task(todo.id);
         }
         --busy_threads;
@@ -200,7 +199,7 @@ void thread_pool::queue_task(thread_pool::task&& t)
     else
     {
         tasks_mutex.lock();
-        tasks.push(std::move(t));
+        tasks_queue.push(std::move(t));
         tasks_mutex.unlock();
         new_task.notify_one();
     }
@@ -246,10 +245,10 @@ bool thread_pool::on_fail_task(task_id id)
 void thread_pool::finish()
 {
     std::unique_lock<std::mutex> lk(tasks_mutex);
-    if(busy_threads == 0 && tasks.empty()) return;
+    if(busy_threads == 0 && tasks_queue.empty()) return;
     no_tasks_running.wait(
         lk,
-        [this]{return busy_threads == 0 && tasks.empty();}
+        [this]{return busy_threads == 0 && tasks_queue.empty();}
     );
 }
 

@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #include "resource_manager.hh"
+#include "resource_container.hh"
 #include <stdexcept>
 
 template<typename T, typename... Args>
@@ -29,110 +30,29 @@ void resource_manager::create(const std::string& name, Args&&... args)
 {
     std::unique_lock<std::shared_timed_mutex> lk(resources_mutex);
     resources[name].reset(
-        new resource_container<typename T::resource_data_type>(
+        new resource_container<
+            typename T::system_data_type,
+            typename T::device_data_type
+        >(
             *this,
             std::forward<Args>(args)...
         )
     );
 }
 
-template<typename T>
-resource_manager::resource_container<T>& resource_manager::get(
+template<typename S, typename D>
+resource_container<S, D>& resource_manager::get(
     const std::string& name
 ){
     std::shared_lock<std::shared_timed_mutex> lk(resources_mutex);
 
     basic_resource_container* container = resources.at(name).get();
-    resource_container<T>* tcontainer = dynamic_cast<resource_container<T>*>(
-        container
-    );
+    resource_container<S, D>* tcontainer =
+        dynamic_cast<resource_container<S, D>*>(container);
     if(!tcontainer)
         throw std::runtime_error(
             "resource_manager::get(): Type mismatch for resource \""+name+"\""
         );
 
     return *tcontainer;
-}
-
-template<typename T>
-template<typename... Args>
-resource_manager::resource_container<T>::resource_container(
-    resource_manager& manager,
-    Args&&... args
-): basic_resource_container(manager), data(std::forward<Args>(args)...) {}
-
-template<typename T>
-resource_manager::resource_container<T>::~resource_container()
-{
-    if(load_future.valid())
-        load_future.wait();
-
-    if(unload_future.valid())
-        unload_future.wait();
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::wait_load_system() const
-{
-    if(status == SYSTEM_LOADED || status == DEVICE_LOADED)
-        return;
-
-    std::unique_lock<std::mutex> lk(load_mutex);
-
-    system_loaded.wait(
-        lk,
-        [&]{return status == SYSTEM_LOADED || status == DEVICE_LOADED;}
-    );
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::wait_load_device() const
-{
-    if(status == DEVICE_LOADED)
-        return;
-
-    std::unique_lock<std::mutex> lk(load_mutex);
-
-    device_loaded.wait(
-        lk,
-        [&]{return status == DEVICE_LOADED;}
-    );
-}
-
-template<typename T>
-const T& resource_manager::resource_container<T>::system() const
-{
-    wait_load_system();
-    return data;
-}
-
-template<typename T>
-const T& resource_manager::resource_container<T>::device() const
-{
-    wait_load_device();
-    return data;
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::load_system() const
-{
-    data.load_system();
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::unload_system() const
-{
-    data.unload_system();
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::load_device() const
-{
-    data.load_device();
-}
-
-template<typename T>
-void resource_manager::resource_container<T>::unload_device() const
-{
-    data.unload_device();
 }

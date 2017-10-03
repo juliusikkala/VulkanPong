@@ -26,6 +26,7 @@ SOFTWARE.
 #include <thread>
 #include <mutex>
 #include <functional>
+#include <set>
 #include <unordered_set>
 #include <queue>
 #include <condition_variable>
@@ -42,6 +43,7 @@ constexpr unsigned PRIORITY_PRONTO = std::numeric_limits<unsigned>::max();
 class thread_pool
 {
 public:
+    //0 is reserved for unassigned post_results
     using task_id = unsigned;
 
     // Launches as many threads as there are cores on the machine, -1
@@ -60,8 +62,18 @@ public:
     unsigned busy() const;
 
     template<typename T = void>
-    struct post_result: public std::future<T>
+    class post_result: public std::future<T>
     {
+    public:
+        post_result();
+        post_result(post_result&& other);
+        post_result(std::future<T>&& f, task_id id);
+
+        post_result& operator=(post_result&& other);
+
+        void clear();
+        task_id get_id() const;
+    private:
         task_id id;
     };
 
@@ -78,7 +90,7 @@ public:
 
     template<typename F, typename... Args>
     auto postd(
-        const std::unordered_set<task_id>& dependencies,
+        const std::set<task_id>& dependencies,
         unsigned priority,
         F&& f,
         Args&&... args
@@ -106,7 +118,7 @@ private:
 
     task_id post(
         thread_pool::task&& t,
-        const std::set<task_id>& dependencies
+        const std::set<task_id>& dependencies = {}
     );
 
     void execute_loop();

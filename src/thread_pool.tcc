@@ -33,19 +33,6 @@ auto thread_pool::post(F&& f, Args&&... args)
     return postp(0, std::forward<F>(f), std::forward<Args>(args)...);
 }
 
-template<typename F, typename R, typename... Args>
-void set(std::promise<R>& p, F&& f, Args&&... args)
-{
-    p.set_value(f(std::forward<Args>(args)...));
-}
-
-template<typename F, typename... Args>
-void set(std::promise<void>& p, F&& f, Args&&... args)
-{
-    f(std::forward<Args>(args)...);
-    p.set_value();
-}
-
 template<typename F, typename... Args>
 auto thread_pool::postp(
     unsigned priority,
@@ -58,7 +45,7 @@ auto thread_pool::postp(
 
 template<typename F, typename... Args>
 auto thread_pool::postd(
-    const std::unordered_set<task_id>& dependencies,
+    const std::set<task_id>& dependencies,
     unsigned priority,
     F&& f,
     Args&&... args
@@ -68,12 +55,10 @@ auto thread_pool::postd(
         std::bind(f, std::forward<Args>(args)...)
     );
 
-    post_result<decltype(f(std::forward<Args>(args)...))> res =
-        task_func.get_future();
-
-    res.id = post(task(std::move(task_func), priority, false), dependencies);
-
-    return res;
+    return post_result<decltype(f(std::forward<Args>(args)...))>(
+        task_func.get_future(),
+        post(task(std::move(task_func), priority, false), dependencies)
+    );
 }
 
 template<typename F>
@@ -81,3 +66,38 @@ thread_pool::task::task(F&& func, unsigned priority, bool finish_thread)
 : task_func(std::forward<F>(func)), priority(priority),
   finish_thread(finish_thread)
 {}
+
+template<typename T>
+thread_pool::post_result<T>::post_result(): id(0) {}
+
+template<typename T>
+thread_pool::post_result<T>::post_result(post_result&& other)
+: std::future<T>(std::move(other)), id(other.id) {}
+
+template<typename T>
+thread_pool::post_result<T>::post_result(std::future<T>&& f, task_id id)
+: std::future<T>(std::move(f)), id(id) {}
+
+template<typename T>
+thread_pool::post_result<T>& thread_pool::post_result<T>::operator=(
+    post_result&& other
+) {
+    id = other.id;
+    std::future<T>::operator=(std::move(other));
+    other.clear();
+    return *this;
+}
+
+template<typename T>
+void thread_pool::post_result<T>::clear()
+{
+    id = 0;    
+    std::future<T>::operator=(std::future<T>());
+}
+
+template<typename T>
+thread_pool::task_id thread_pool::post_result<T>::get_id() const
+{
+    return id;
+}
+

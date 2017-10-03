@@ -21,59 +21,70 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include "resource.hh"
-#include "context.hh"
-#include "resource_manager.hh"
+#include "resource_container.hh"
 
 template<typename S, typename D>
-resource<S, D>::resource(
-    context& ctx,
-    const std::string& resource_name
-): resource(ctx.resources, resource_name) { }
-
-template<typename S, typename D>
-resource<S, D>::resource(
+template<typename... Args>
+resource_container<S, D>::resource_container(
     resource_manager& manager,
-    const std::string& resource_name
-): data_container(manager.get<S, D>(resource_name))
+    Args&&... args
+): basic_resource_container(manager), system_data(std::forward<Args>(args)...)
+{}
+
+template<typename S, typename D>
+resource_container<S, D>::~resource_container()
 {
-    data_container.pin();
+    for(auto pair: device_data)
+    {
+        start_unload_device(pair.first);
+    }
+    unload_system();
 }
 
 template<typename S, typename D>
-resource<S, D>::resource(const resource<S, D>& other)
-: data_container(other.data_container)
+const S& resource_container<S, D>::system() const
 {
-    data_container.pin();
+    wait_load_system();
+    return system_data;
 }
 
 template<typename S, typename D>
-resource<S, D>::~resource()
+const D& resource_container<S, D>::device(device_id id) const
 {
-    data_container.unpin();
+    wait_load_device(id);
+    return device_data(id);
 }
 
 template<typename S, typename D>
-void resource<S, D>::wait_load_system() const
+void resource_container<S, D>::load_system() const
 {
-    data_container.wait_load_system();
+    system_data.load();
 }
 
 template<typename S, typename D>
-void resource<S, D>::wait_load_device(device_id id) const
+void resource_container<S, D>::unload_system() const
 {
-    data_container.wait_load_device(id);
+    system_data.unload();
 }
 
 template<typename S, typename D>
-const S& resource<S, D>::system() const
+void resource_container<S, D>::load_device(device_id id) const
 {
-    return data_container.system();
+    auto it = device_data.find(id);
+    if(!it)
+    {
+        it = device_data.emplace(id, {id, system_data})->first;
+    }
+    it->second->load();
 }
 
 template<typename S, typename D>
-const D& resource<S, D>::device(device_id id) const
+void resource_container<S, D>::unload_device(device_id id) const
 {
-    return data_container.device(id);
+    auto it = device_data.find(id);
+    if(it)
+    {
+        it->second->unload();
+    }
 }
 

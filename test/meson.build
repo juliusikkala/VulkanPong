@@ -16,7 +16,12 @@ test(
   'Resources',
   executable(
     'resource',
-    ['resource.cc', '../src/resource_manager.cc', '../src/thread_pool.cc'],
+    [
+      'resource.cc',
+      '../src/resource_container.cc',
+      '../src/resource_manager.cc',
+      '../src/thread_pool.cc'
+    ],
     dependencies : gtest,
     include_directories : srcdir
   )

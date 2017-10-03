@@ -32,18 +32,16 @@ SOFTWARE.
 #include <functional>
 #include <memory>
 #include <future>
+#include "resource_container.hh"
 
 class shader;
 class thread_pool;
-class basic_resource_container;
-
-//Make sure this is an integral type (pointers are fine)
-using device_id = void*;
 
 class resource_manager
 {
-template<typename T>
+template<typename S, typename D>
 friend class resource;
+friend class basic_resource_container;
 public:
     resource_manager(thread_pool& pool);
     resource_manager(const resource_manager& other) = delete;
@@ -53,11 +51,16 @@ public:
     template<typename T, typename... Args>
     void create(const std::string& name, Args&&... args);
 
-    template<typename T>
-    resource_container<T>& get(const std::string& name);
+    template<typename S, typename D>
+    resource_container<S, D>& get(const std::string& name);
 
+    //These pin/unpin on all devices
     void pin(const std::string& name);
     void unpin(const std::string& name);
+
+    //These pin/unpin on specific devices
+    void pin(const std::string& name, device_id id);
+    void unpin(const std::string& name, device_id id);
 
 private:
     std::shared_timed_mutex resources_mutex;
@@ -67,18 +70,6 @@ private:
     > resources;
 
     thread_pool& pool;
-};
-
-class resource_data
-{
-public:
-    virtual ~resource_data();
-
-    virtual void load_system();
-    virtual void unload_system();
-
-    virtual void load_device();
-    virtual void unload_device();
 };
 
 #include "resource_manager.tcc"
